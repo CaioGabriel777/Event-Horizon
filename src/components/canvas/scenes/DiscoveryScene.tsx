@@ -1,16 +1,19 @@
 /**
  * DiscoveryScene — Scene 2: First Sight
  * ======================================
- * Placeholder scene for Phase 2.
- * Will contain: distant black hole reveal, light distortion,
- * chromatic aberration increase, accretion disk first visible.
+ * Phase 2: Minimal scene that hints at the gravitational presence.
+ * The main text content is handled by the SceneOverlay (DOM layer).
+ * This scene only adds subtle ambient lighting.
+ *
+ * NOTE: The 3D text "Something pulls..." was removed because it
+ * overlapped with ApproachScene's "TIME IS RELATIVE" text when
+ * both scenes are active simultaneously.
  */
 
 "use client";
 
 import { useRef } from "react";
 import { Group } from "three";
-import { Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 
 interface DiscoverySceneProps {
@@ -27,18 +30,8 @@ export function DiscoveryScene({ active }: DiscoverySceneProps) {
 
   return (
     <group ref={groupRef}>
-      <Text
-        position={[0, 3, 8]}
-        fontSize={0.3}
-        color="#94a3b8"
-        anchorX="center"
-        anchorY="middle"
-        font="/fonts/SpaceGrotesk-Medium.ttf"
-        material-transparent
-        material-opacity={0.7}
-      >
-        Something pulls at the fabric of space
-      </Text>
+      {/* Scene 2: Subtle ambient only — text is in SceneOverlay DOM */}
+      <ambientLight intensity={0.015} color="#0a0e1a" />
     </group>
   );
 }

@@ -11,6 +11,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { CinematicSplash } from "@/components/ui/CinematicSplash";
 
 // Dynamic import with SSR disabled — Canvas requires browser APIs
 const Experience = dynamic(
@@ -18,19 +19,7 @@ const Experience = dynamic(
     import("@/components/canvas/Experience").then((mod) => ({
       default: mod.Experience,
     })),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="fixed inset-0 bg-[#030308] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border border-slate-700 border-t-slate-400 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-xs tracking-[0.4em] uppercase text-slate-600">
-            Initializing spacetime
-          </p>
-        </div>
-      </div>
-    ),
-  }
+  { ssr: false }
 );
 
 const Navigation = dynamic(
@@ -60,6 +49,9 @@ const HUD = dynamic(
 export default function Home() {
   return (
     <main className="relative w-full h-screen overflow-hidden" id="landing-page">
+      {/* Cinematic splash — shows immediately while Canvas loads */}
+      <CinematicSplash minimumDisplayMs={2800} />
+
       {/* 3D Experience (fullscreen Canvas) */}
       <Experience />
 

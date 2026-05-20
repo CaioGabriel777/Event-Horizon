@@ -9,7 +9,7 @@ An immersive, cinematic, physically-based WebGL experience exploring the gravita
 ---
 
 ## 🚀 Features
-
+                  
 - **Physically-based Rendering**: Light rays are bent according to General Relativity, accurately simulating the gravitational lensing, the photon ring, and the event horizon.
 - **WASM Geodesic Precomputation**: A high-performance Rust module calculates the ray paths and intersections offline. This heavy computation runs in a **Web Worker**, ensuring the UI remains 100% responsive.
 - **Real-Time GLSL Shader**: The fragment shader uses the precomputed LUT as a texture, turning an expensive 1500-step RK4 integration per pixel into a single `texture2D()` read, providing a **50-100x performance boost**.

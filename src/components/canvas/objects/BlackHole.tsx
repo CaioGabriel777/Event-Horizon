@@ -99,7 +99,7 @@ export function BlackHole({
   });
 
   return (
-    <mesh position={position} scale={scale}>
+    <mesh position={position} scale={scale} renderOrder={10}>
       <planeGeometry args={[2, 2, 1, 1]} />
       <shaderMaterial
         ref={materialRef}
@@ -108,7 +108,8 @@ export function BlackHole({
         uniforms={uniforms}
         side={DoubleSide}
         transparent
-        depthWrite={false}
+        depthWrite={true}
+        depthTest={true}
       />
     </mesh>
   );

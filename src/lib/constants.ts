@@ -67,7 +67,7 @@ export const PHASES: readonly PhaseConfig[] = [
     scrollStart: 0.6,
     scrollEnd: 0.8,
     gravity: 0.9,
-    cameraZ: 5,
+    cameraZ: 3,
   },
   {
     id: "singularity",
@@ -75,7 +75,7 @@ export const PHASES: readonly PhaseConfig[] = [
     scrollStart: 0.8,
     scrollEnd: 1.0,
     gravity: 1.0,
-    cameraZ: 0,
+    cameraZ: -18,  // Inside the black hole (BH is at z=-20)
   },
 ] as const;
 

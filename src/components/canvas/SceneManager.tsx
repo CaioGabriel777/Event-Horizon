@@ -7,6 +7,11 @@
  * 2. Animate camera position based on current phase
  * 3. Render all scenes (conditionally active based on phase)
  * 4. Run performance monitoring hooks
+ *
+ * CAMERA LOOK-AT: The camera always looks at the origin during
+ * early phases, but smoothly transitions to look toward the
+ * black hole position (-20z) during singularity, so the camera
+ * can physically "enter" the black hole without losing sight of it.
  */
 
 "use client";
@@ -28,6 +33,9 @@ import { ApproachScene } from "./scenes/ApproachScene";
 import { EventHorizonScene } from "./scenes/EventHorizonScene";
 import { SingularityScene } from "./scenes/SingularityScene";
 
+// Black hole Z position (must match ApproachScene's BlackHole position)
+const BH_Z = -20;
+
 export function SceneManager() {
   // ─── Hooks ──────────────────────────────────────────────────
   useScrollPhase();          // Bridge scroll → Zustand
@@ -38,8 +46,9 @@ export function SceneManager() {
   const phase = useExperienceStore((s) => s.phase);
   const scrollProgress = useExperienceStore((s) => s.scrollProgress);
 
-  // Camera animation target
+  // Camera animation targets
   const targetPos = useRef(new Vector3(...CAMERA.initialPosition));
+  const lookTarget = useRef(new Vector3(0, 0, 0));
 
   // ─── Camera Animation ───────────────────────────────────────
   useFrame((_, delta) => {
@@ -54,8 +63,16 @@ export function SceneManager() {
     camera.position.y = damp(camera.position.y, 0, 3, delta);
     camera.position.z = damp(camera.position.z, targetPos.current.z, 2, delta);
 
-    // Always look at origin
-    camera.lookAt(0, 0, 0);
+    // ─── Dynamic Look-At ──────────────────────────────────────
+    // During singularity, the camera passes z=0 and enters the
+    // black hole. We smoothly shift the look-at target from the
+    // origin (0,0,0) toward the BH position (0,0,-20) so the
+    // camera keeps facing the black hole as it enters.
+    const isEntering = phase === "singularity" || phase === "event-horizon";
+    const targetLookZ = isEntering ? BH_Z : 0;
+    lookTarget.current.z = damp(lookTarget.current.z, targetLookZ, 1.5, delta);
+
+    camera.lookAt(lookTarget.current);
   });
 
   // ─── Render all scenes ──────────────────────────────────────
@@ -68,7 +85,8 @@ export function SceneManager() {
       <ApproachScene active={
         phase === "approach" ||
         phase === "discovery" ||
-        phase === "event-horizon"
+        phase === "event-horizon" ||
+        phase === "singularity"
       } />
       <EventHorizonScene active={phase === "event-horizon"} />
       <SingularityScene active={phase === "singularity"} />

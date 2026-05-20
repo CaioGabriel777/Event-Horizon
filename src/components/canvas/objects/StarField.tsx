@@ -7,6 +7,10 @@
  * for static stars — animation is done via vertex shader.
  *
  * Particle count adapts to the quality tier from the experience store.
+ *
+ * VISUAL FIX: Uses higher-poly spheres (8 segments) to avoid the
+ * pixelated/blocky appearance that was caused by using only 4 segments.
+ * The visual cost is minimal because the spheres are tiny (0.02-0.08 scale).
  */
 
 "use client";
@@ -17,8 +21,6 @@ import {
   InstancedMesh,
   Matrix4,
   Vector3,
-  SphereGeometry,
-  MeshBasicMaterial,
   Color,
 } from "three";
 import { useExperienceStore } from "@/store/useExperienceStore";
@@ -44,6 +46,9 @@ export function StarField({ radius = 100 }: StarFieldProps) {
 
     const starColor = new Color(COLORS.starWhite);
     const dimColor = new Color(COLORS.softWhite);
+    // Warm and cool tints for color variety
+    const warmColor = new Color("#ffe4c4");
+    const coolColor = new Color("#c4d8ff");
 
     for (let i = 0; i < count; i++) {
       // Distribute on a sphere with some clustering
@@ -60,12 +65,18 @@ export function StarField({ radius = 100 }: StarFieldProps) {
 
       mats.push(tempMatrix.clone());
 
-      // Color variation: mostly white, some slightly warm or cool
-      const colorMix = Math.random();
-      const c = colorMix > 0.8 ? starColor : dimColor;
-      cols[i * 3] = c.r * (0.7 + Math.random() * 0.3);
-      cols[i * 3 + 1] = c.g * (0.7 + Math.random() * 0.3);
-      cols[i * 3 + 2] = c.b * (0.7 + Math.random() * 0.3);
+      // Color variation: white, warm, and cool tones
+      const colorRoll = Math.random();
+      let c: Color;
+      if (colorRoll > 0.9) c = warmColor;
+      else if (colorRoll > 0.8) c = coolColor;
+      else if (colorRoll > 0.6) c = starColor;
+      else c = dimColor;
+
+      const brightness = 0.7 + Math.random() * 0.3;
+      cols[i * 3] = c.r * brightness;
+      cols[i * 3 + 1] = c.g * brightness;
+      cols[i * 3 + 2] = c.b * brightness;
     }
 
     return { matrices: mats, colors: cols };
@@ -113,8 +124,10 @@ export function StarField({ radius = 100 }: StarFieldProps) {
       ref={meshRef}
       args={[undefined, undefined, count]}
       frustumCulled={false}
+      renderOrder={-1}
     >
-      <sphereGeometry args={[1, 4, 4]} />
+      {/* 8 segments instead of 4 — smooth spheres, no pixelated look */}
+      <sphereGeometry args={[1, 8, 8]} />
       <meshBasicMaterial color={COLORS.starWhite} toneMapped={false} />
     </instancedMesh>
   );

@@ -333,6 +333,16 @@ void main() {
     accColor *= (1.0 - ehMask);  // Zero out color inside EH
     accAlpha = max(accAlpha, ehMask); // Force opaque inside EH
 
+    // ─── Full BH Occlusion Mask ─────────────────────────────────────
+    // The entire BH visual area (event horizon + accretion disk +
+    // photon ring + lensing zone) must be FULLY OPAQUE so that stars
+    // behind it are not visible. The shader itself handles what's
+    // visible — lensed deep space is black, accretion disk is colored.
+    // Stars should NEVER show through any part of the black hole.
+    float bhInfluenceR = 0.18 * uMass;
+    float occlusionMask = smoothstep(bhInfluenceR * 1.4, bhInfluenceR * 0.3, screenDist);
+    accAlpha = max(accAlpha, occlusionMask);
+
     // ─── Final Output ───────────────────────────────────────────────
     float alpha = clamp(accAlpha + ring, 0.0, 1.0);
 

@@ -151,10 +151,10 @@ function PhaseContent({ phase }: { phase: string }) {
 function SingularityBlackout() {
   const scrollProgress = useExperienceStore((s) => s.scrollProgress);
 
-  // Start fading at 85%, fully black by 98%
+  // Start fading at 90%, fully black by 98% (camera is deep inside BH by then)
   const blackoutOpacity = Math.min(
     1,
-    Math.max(0, (scrollProgress - 0.85) / 0.13)
+    Math.max(0, (scrollProgress - 0.90) / 0.08)
   );
 
   if (blackoutOpacity <= 0) return null;
