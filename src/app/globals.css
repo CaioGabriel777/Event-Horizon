@@ -1,26 +1,84 @@
 @import "tailwindcss";
 
+/* ─── Event Horizon Design Tokens ──────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --color-void: #000000;
+  --color-deep-space: #030308;
+  --color-space-blue: #0a0e1a;
+  --color-star-white: #e8e6e3;
+  --color-soft-white: #c4c0ba;
+  --color-accretion-hot: #fff4e0;
+  --color-accretion-warm: #e87c2a;
+  --color-accretion-cool: #8b2500;
+  --color-accretion-glow: #ff9a3c;
+  --background: #030308;
+  --foreground: #e8e6e3;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-space-grotesk);
+  --font-mono: var(--font-jetbrains-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ─── Base Styles ──────────────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+/* ─── Canvas Container ─────────────────────────────────────────────── */
+#experience-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+}
+
+#experience-canvas canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* ─── Selection Styling ────────────────────────────────────────────── */
+::selection {
+  background: rgba(232, 124, 42, 0.3);
+  color: var(--color-star-white);
+}
+
+/* ─── Scrollbar — Minimal ──────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 2px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.15);
+  border-radius: 1px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.3);
+}
+
+/* ─── Utility: Prevent text selection during scroll ────────────────── */
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
 }
