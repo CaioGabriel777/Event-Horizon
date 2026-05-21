@@ -52,11 +52,23 @@ export function StarField({ radius = 100 }: StarFieldProps) {
 
     for (let i = 0; i < count; i++) {
       // Distribute on a sphere with some clustering
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-      const r = radius * (0.3 + Math.random() * 0.7);
-
-      tempPosition.setFromSphericalCoords(r, phi, theta);
+      // EXCLUSION ZONE: no stars within a cylinder around the BH center
+      // (BH is at [0, 0, -20], so we exclude a cylinder along the camera→BH axis)
+      let attempts = 0;
+      do {
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        const r = radius * (0.3 + Math.random() * 0.7);
+        tempPosition.setFromSphericalCoords(r, phi, theta);
+        attempts++;
+      } while (
+        // Small exclusion: only prevent stars directly on the BH center
+        // line-of-sight. Stars behind the BH are already handled by
+        // alphaTest + depthWrite on the BH shader material.
+        Math.sqrt(tempPosition.x * tempPosition.x + tempPosition.y * tempPosition.y) < 6 &&
+        tempPosition.z > -25 && tempPosition.z < 20 &&
+        attempts < 5
+      );
 
       // Random scale for size variation
       const scale = 0.02 + Math.random() * 0.06;

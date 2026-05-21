@@ -12,7 +12,12 @@
  * - When WASM geodesic LUT is available: single texture lookup per pixel (~50-100x faster)
  * - Fallback: per-pixel RK4 integration (original shader path)
  *
- * Uses a fullscreen-ish quad with a custom ShaderMaterial.
+ * Rendering Strategy:
+ * Uses alphaTest instead of transparency. The shader outputs alpha=1
+ * for all BH-affected pixels (center, disk, ring) and alpha=0 for
+ * areas with no effect. alphaTest discards alpha<threshold fragments,
+ * while drawn fragments write to the depth buffer — properly occluding
+ * stars behind the BH without the gray halo artifact.
  */
 
 "use client";
@@ -107,7 +112,8 @@ export function BlackHole({
         fragmentShader={fragmentShader}
         uniforms={uniforms}
         side={DoubleSide}
-        transparent
+        transparent={false}
+        alphaTest={0.005}
         depthWrite={true}
         depthTest={true}
       />

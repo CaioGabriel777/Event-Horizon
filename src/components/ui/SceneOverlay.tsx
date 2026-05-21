@@ -144,17 +144,17 @@ function PhaseContent({ phase }: { phase: string }) {
 }
 
 /**
- * SingularityBlackout — Fade to total black when entering singularity.
- * This creates the dramatic "falling into the black hole" effect.
- * The opacity smoothly ramps from 0 to 1 as scrollProgress goes from 0.85 to 0.98.
+ * SingularityBlackout — Fast fade to total black during suck-in.
+ * The suck-in auto-scroll drives progress from 78% to 100% rapidly,
+ * so the blackout happens in under a second during the violent pull.
  */
 function SingularityBlackout() {
   const scrollProgress = useExperienceStore((s) => s.scrollProgress);
 
-  // Start fading at 90%, fully black by 98% (camera is deep inside BH by then)
+  // Start fading at 82% (after suck-in triggers at 78%), fully black by 92%
   const blackoutOpacity = Math.min(
     1,
-    Math.max(0, (scrollProgress - 0.90) / 0.08)
+    Math.max(0, (scrollProgress - 0.82) / 0.10)
   );
 
   if (blackoutOpacity <= 0) return null;
@@ -165,7 +165,7 @@ function SingularityBlackout() {
       style={{
         backgroundColor: "#000000",
         opacity: blackoutOpacity,
-        transition: "opacity 0.3s ease-out",
+        // No CSS transition — the auto-scroll drives the speed
       }}
     />
   );

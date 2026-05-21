@@ -135,32 +135,44 @@ vec4 sampleDiskAtAngle(float r, float angle) {
     float radialT = 1.0 - (r - DISK_INNER) / (DISK_OUTER - DISK_INNER);
     radialT = clamp(radialT, 0.0, 1.0);
 
-    int octaves = radialT > 0.5 ? 4 : 2;
+    // Higher octaves for smoother, more detailed turbulence
+    int octaves = radialT > 0.5 ? 6 : 4;
 
+    // Primary turbulence — faster rotation (3x speed increase)
     float turb = fbm(vec2(
-        angle * 4.0 + uTime * 0.08,
-        r * 1.5 - uTime * 0.02
+        angle * 5.0 + uTime * 0.25,
+        r * 2.0 - uTime * 0.06
     ), octaves);
 
+    // Fine detail layer — swirling gas filaments
     float detail = fbm(vec2(
-        angle * 12.0 - uTime * 0.15,
-        r * 3.0 + uTime * 0.03
+        angle * 16.0 - uTime * 0.4,
+        r * 4.0 + uTime * 0.08
+    ), 3);
+
+    // Third micro-detail layer for extra richness
+    float micro = fbm(vec2(
+        angle * 28.0 + uTime * 0.6,
+        r * 6.0 - uTime * 0.12
     ), 2);
 
-    float pattern = turb * 0.55 + detail * 0.45;
-    pattern = 0.3 + pattern * 0.7;
+    float pattern = turb * 0.45 + detail * 0.35 + micro * 0.20;
+    pattern = 0.25 + pattern * 0.75;
 
     float temp = pow(radialT, 0.75) * pattern;
 
+    // Orbital velocity + Doppler beaming — faster rotation
     float orbitalV = 0.5 / sqrt(r / DISK_INNER);
-    float doppler = 1.0 + 0.6 * orbitalV * sin(angle + uTime * 0.1);
+    float doppler = 1.0 + 0.6 * orbitalV * sin(angle + uTime * 0.3);
 
     temp = clamp(temp * doppler, 0.0, 1.0);
     vec3 color = blackbody(temp);
 
     float intensity = pow(radialT, 0.6) * pattern;
-    intensity *= smoothstep(DISK_INNER, DISK_INNER + 0.3, r);
-    intensity *= 1.0 - smoothstep(DISK_OUTER - 1.0, DISK_OUTER, r);
+    // Softer inner edge — wider smooth transition
+    intensity *= smoothstep(DISK_INNER, DISK_INNER + 0.6, r);
+    // Much softer outer edge — natural feathered falloff (no hard border)
+    intensity *= 1.0 - smoothstep(DISK_OUTER - 3.0, DISK_OUTER, r);
     intensity *= (0.7 + 0.3 * doppler);
 
     return vec4(color * intensity, clamp(intensity, 0.0, 1.0));
@@ -333,18 +345,14 @@ void main() {
     accColor *= (1.0 - ehMask);  // Zero out color inside EH
     accAlpha = max(accAlpha, ehMask); // Force opaque inside EH
 
-    // ─── Full BH Occlusion Mask ─────────────────────────────────────
-    // The entire BH visual area (event horizon + accretion disk +
-    // photon ring + lensing zone) must be FULLY OPAQUE so that stars
-    // behind it are not visible. The shader itself handles what's
-    // visible — lensed deep space is black, accretion disk is colored.
-    // Stars should NEVER show through any part of the black hole.
-    float bhInfluenceR = 0.18 * uMass;
-    float occlusionMask = smoothstep(bhInfluenceR * 1.4, bhInfluenceR * 0.3, screenDist);
-    accAlpha = max(accAlpha, occlusionMask);
-
     // ─── Final Output ───────────────────────────────────────────────
     float alpha = clamp(accAlpha + ring, 0.0, 1.0);
+
+    // CRITICAL: Three.js alphaTest does NOT work with custom ShaderMaterial.
+    // We must manually discard transparent fragments so the BH quad doesn't
+    // render as a dark rectangle. Only BH-affected pixels (center, disk,
+    // ring) are drawn; everything else is discarded, letting stars through.
+    if (alpha < 0.01) discard;
 
     gl_FragColor = vec4(accColor, alpha);
 }

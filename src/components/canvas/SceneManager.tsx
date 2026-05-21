@@ -8,10 +8,9 @@
  * 3. Render all scenes (conditionally active based on phase)
  * 4. Run performance monitoring hooks
  *
- * CAMERA LOOK-AT: The camera always looks at the origin during
- * early phases, but smoothly transitions to look toward the
- * black hole position (-20z) during singularity, so the camera
- * can physically "enter" the black hole without losing sight of it.
+ * SINGULARITY SUCK-IN: During the singularity phase, the camera
+ * accelerates exponentially toward the black hole (10x damp speed),
+ * creating a dramatic "being sucked in" effect before the blackout.
  */
 
 "use client";
@@ -44,7 +43,6 @@ export function SceneManager() {
 
   const { camera } = useThree();
   const phase = useExperienceStore((s) => s.phase);
-  const scrollProgress = useExperienceStore((s) => s.scrollProgress);
 
   // Camera animation targets
   const targetPos = useRef(new Vector3(...CAMERA.initialPosition));
@@ -56,28 +54,30 @@ export function SceneManager() {
     const config = PHASES.find((p) => p.id === phase);
     if (!config) return;
 
-    // Smooth camera movement
+    // Set target Z from phase config
     targetPos.current.z = config.cameraZ;
+
+    // Camera speed: normal = 2, singularity = 12 (6x faster for suck-in)
+    const isSingularity = phase === "singularity";
+    const dampSpeed = isSingularity ? 12 : 2;
 
     camera.position.x = damp(camera.position.x, 0, 3, delta);
     camera.position.y = damp(camera.position.y, 0, 3, delta);
-    camera.position.z = damp(camera.position.z, targetPos.current.z, 2, delta);
+    camera.position.z = damp(camera.position.z, targetPos.current.z, dampSpeed, delta);
 
     // ─── Dynamic Look-At ──────────────────────────────────────
-    // During singularity, the camera passes z=0 and enters the
-    // black hole. We smoothly shift the look-at target from the
-    // origin (0,0,0) toward the BH position (0,0,-20) so the
-    // camera keeps facing the black hole as it enters.
-    const isEntering = phase === "singularity" || phase === "event-horizon";
+    // From event-horizon onward, the camera looks directly at the
+    // black hole instead of the origin, so it stays in view as
+    // the camera enters the singularity.
+    const isEntering = isSingularity || phase === "event-horizon";
     const targetLookZ = isEntering ? BH_Z : 0;
-    lookTarget.current.z = damp(lookTarget.current.z, targetLookZ, 1.5, delta);
+    const lookDampSpeed = isSingularity ? 8 : 1.5;
+    lookTarget.current.z = damp(lookTarget.current.z, targetLookZ, lookDampSpeed, delta);
 
     camera.lookAt(lookTarget.current);
   });
 
   // ─── Render all scenes ──────────────────────────────────────
-  // All scenes are always mounted but can internally skip rendering
-  // based on phase to avoid mount/unmount overhead
   return (
     <group>
       <NebulaScene active={phase === "nebula"} />

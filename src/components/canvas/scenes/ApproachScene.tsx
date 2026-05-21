@@ -36,7 +36,7 @@ export function ApproachScene({ active }: ApproachSceneProps) {
   return (
     <group ref={groupRef}>
       {/* ─── The Black Hole (center of attention) ────────────────── */}
-      <BlackHole position={[0, 0, -20]} scale={14} />
+      <BlackHole position={[0, 0, -20]} scale={22} />
 
       {/* ─── Star Field ──────────────────────────────────────────── */}
       <StarField radius={80} />
