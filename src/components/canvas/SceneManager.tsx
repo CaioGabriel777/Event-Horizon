@@ -1,16 +1,15 @@
 /**
- * SceneManager — Cinematic Scene Orchestrator
- * ============================================
+ * SceneManager — Cinematic Timeline Orchestrator
+ * ================================================
  * Lives inside <ScrollControls> and <Canvas>.
- * Responsibilities:
- * 1. Bridge scroll position → Zustand store
- * 2. Animate camera position based on current phase
- * 3. Render all scenes (conditionally active based on phase)
- * 4. Run performance monitoring hooks
  *
- * SINGULARITY SUCK-IN: During the singularity phase, the camera
- * accelerates exponentially toward the black hole (10x damp speed),
- * creating a dramatic "being sucked in" effect before the blackout.
+ * KEY ARCHITECTURE: Camera Z is driven by continuous keyframe
+ * interpolation from CAMERA_KEYFRAMES, NOT discrete phase jumps.
+ * This gives butter-smooth camera movement through the entire
+ * scroll range.
+ *
+ * Signals isReady on first render frame so the loader knows
+ * when GPU compilation is complete.
  */
 
 "use client";
@@ -22,8 +21,8 @@ import { useScrollPhase } from "@/hooks/useScrollPhase";
 import { usePerformanceMonitor } from "@/hooks/usePerformanceMonitor";
 import { useAdaptiveQuality } from "@/hooks/useAdaptiveQuality";
 import { useExperienceStore } from "@/store/useExperienceStore";
-import { PHASES, CAMERA } from "@/lib/constants";
-import { damp } from "@/lib/math";
+import { CAMERA_KEYFRAMES } from "@/lib/constants";
+import { damp, lerp, clamp } from "@/lib/math";
 
 // Scene components
 import { NebulaScene } from "./scenes/NebulaScene";
@@ -32,62 +31,90 @@ import { ApproachScene } from "./scenes/ApproachScene";
 import { EventHorizonScene } from "./scenes/EventHorizonScene";
 import { SingularityScene } from "./scenes/SingularityScene";
 
-// Black hole Z position (must match ApproachScene's BlackHole position)
 const BH_Z = -20;
 
+/**
+ * Interpolate camera Z from the keyframe table.
+ * Linear interpolation between the two surrounding keyframes.
+ */
+function getCameraZ(scroll: number): number {
+  const kf = CAMERA_KEYFRAMES;
+  if (scroll <= kf[0].scroll) return kf[0].z;
+  if (scroll >= kf[kf.length - 1].scroll) return kf[kf.length - 1].z;
+
+  for (let i = 0; i < kf.length - 1; i++) {
+    if (scroll >= kf[i].scroll && scroll <= kf[i + 1].scroll) {
+      const t = (scroll - kf[i].scroll) / (kf[i + 1].scroll - kf[i].scroll);
+      return lerp(kf[i].z, kf[i + 1].z, t);
+    }
+  }
+  return kf[kf.length - 1].z;
+}
+
+import { useScroll } from "@react-three/drei";
+
 export function SceneManager() {
-  // ─── Hooks ──────────────────────────────────────────────────
-  useScrollPhase();          // Bridge scroll → Zustand
-  usePerformanceMonitor();   // Track FPS, draw calls
-  useAdaptiveQuality();      // Auto-downgrade quality
+  useScrollPhase();
+  usePerformanceMonitor();
+  useAdaptiveQuality();
 
   const { camera } = useThree();
   const phase = useExperienceStore((s) => s.phase);
+  const setReady = useExperienceStore((s) => s.setReady);
+  const scroll = useScroll();
 
-  // Camera animation targets
-  const targetPos = useRef(new Vector3(...CAMERA.initialPosition));
   const lookTarget = useRef(new Vector3(0, 0, 0));
+  const readySignaled = useRef(false);
 
-  // ─── Camera Animation ───────────────────────────────────────
   useFrame((_, delta) => {
-    // Find current phase config for target camera Z
-    const config = PHASES.find((p) => p.id === phase);
-    if (!config) return;
+    // Signal ready on first frame (shaders compiled, GPU warm)
+    if (!readySignaled.current) {
+      readySignaled.current = true;
+      // Small delay to ensure the first frame fully renders
+      setTimeout(() => setReady(), 100);
+    }
 
-    // Set target Z from phase config
-    targetPos.current.z = config.cameraZ;
+    const scrollProgress = scroll.offset;
 
-    // Camera speed: normal = 2, singularity = 12 (6x faster for suck-in)
-    const isSingularity = phase === "singularity";
-    const dampSpeed = isSingularity ? 12 : 2;
-
+    // ─── Continuous Camera Z from keyframes ────────────────────
+    const targetZ = getCameraZ(scrollProgress);
     camera.position.x = damp(camera.position.x, 0, 3, delta);
     camera.position.y = damp(camera.position.y, 0, 3, delta);
-    camera.position.z = damp(camera.position.z, targetPos.current.z, dampSpeed, delta);
 
-    // ─── Dynamic Look-At ──────────────────────────────────────
-    // From event-horizon onward, the camera looks directly at the
-    // black hole instead of the origin, so it stays in view as
-    // the camera enters the singularity.
+    // Singularity gets faster damping for suck-in effect
+    const isSingularity = phase === "singularity";
+    const dampSpeed = isSingularity ? 12 : 3;
+    camera.position.z = damp(camera.position.z, targetZ, dampSpeed, delta);
+
+    // ─── Dynamic Look-At ───────────────────────────────────────
     const isEntering = isSingularity || phase === "event-horizon";
     const targetLookZ = isEntering ? BH_Z : 0;
-    const lookDampSpeed = isSingularity ? 8 : 1.5;
-    lookTarget.current.z = damp(lookTarget.current.z, targetLookZ, lookDampSpeed, delta);
-
+    const lookDamp = isSingularity ? 8 : 1.5;
+    lookTarget.current.z = damp(lookTarget.current.z, targetLookZ, lookDamp, delta);
     camera.lookAt(lookTarget.current);
   });
 
-  // ─── Render all scenes ──────────────────────────────────────
+  // ─── Scene Visibility ────────────────────────────────────────
+  // Nebula: visible during home → revelation (0.00 - 0.60)
+  const nebulaActive =
+    phase === "home" ||
+    phase === "awakening" ||
+    phase === "traversal" ||
+    phase === "revelation";
+
+  // BH scenes: visible from revelation onward (0.40+)
+  const bhActive =
+    phase === "revelation" ||
+    phase === "discovery" ||
+    phase === "approach" ||
+    phase === "event-horizon" ||
+    phase === "singularity";
+
   return (
     <group>
-      <NebulaScene active={phase === "nebula"} />
-      <DiscoveryScene active={phase === "discovery" || phase === "approach"} />
-      <ApproachScene active={
-        phase === "approach" ||
-        phase === "discovery" ||
-        phase === "event-horizon" ||
-        phase === "singularity"
-      } />
+      <NebulaScene active={nebulaActive} />
+      <DiscoveryScene active={phase === "discovery" || phase === "approach" || phase === "revelation"} />
+      <ApproachScene active={bhActive} />
       <EventHorizonScene active={phase === "event-horizon"} />
       <SingularityScene active={phase === "singularity"} />
     </group>

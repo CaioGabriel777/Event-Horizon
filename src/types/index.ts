@@ -5,9 +5,12 @@
  * performance monitoring, and shader uniforms.
  */
 
-/** The 5 cinematic phases of the experience */
+/** The cinematic phases of the experience */
 export type Phase =
-  | "nebula"
+  | "home"
+  | "awakening"
+  | "traversal"
+  | "revelation"
   | "discovery"
   | "approach"
   | "event-horizon"
@@ -34,10 +37,12 @@ export interface ExperienceState {
   gravity: number;              // 0 → 1 gravitational intensity
   qualityTier: QualityTier;
   isTransitioning: boolean;
+  isReady: boolean;             // True when Canvas is fully compiled
 
   // Actions
   setScrollProgress: (v: number) => void;
   setQualityTier: (tier: QualityTier) => void;
+  setReady: () => void;
 }
 
 /** Performance metrics for the tech dashboard */

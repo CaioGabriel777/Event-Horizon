@@ -1,125 +1,147 @@
 /**
- * Event Horizon — Constants
- * =========================
- * Design tokens, physics constants, and phase configurations.
- * Single source of truth for the entire experience.
+ * Event Horizon — Constants & Cinematic Timeline
+ * ================================================
+ * Single source of truth for the scroll-driven experience.
+ *
+ * TIMELINE (scroll 0.0 → 1.0):
+ * ─────────────────────────────────────────────────────────
+ * Phase 0 - HOME      (0.00)       Camera still, nebula blurred, UI visible
+ * Phase 1 - AWAKENING (0.00→0.15)  UI fades, blur→0, nebula revealed
+ * Phase 2 - TRAVERSAL (0.15→0.40)  Camera advances through nebula
+ * Phase 3 - REVELATION(0.40→0.60)  Nebula fades, BH appears
+ * Phase 4 - DISCOVERY  (0.60→0.72) BH visible, scientific text
+ * Phase 5 - APPROACH   (0.72→0.82) Close to BH, gravity takes hold
+ * Phase 6 - EVENT HOR. (0.82→0.90) Point of no return
+ * Phase 7 - SINGULARITY(0.90→1.00) Suck-in, blackout, reset
+ * ─────────────────────────────────────────────────────────
  */
 
 import { PhaseConfig } from "@/types";
 
 // ─── Color Palette ──────────────────────────────────────────────────────────
-// Inspired by: Interstellar, 2001: A Space Odyssey, Arrival
-// NO neon, NO cyberpunk, NO gamer aesthetics
 export const COLORS = {
-  // Deep space blacks
   void: "#000000",
   deepSpace: "#030308",
   spaceBlue: "#0a0e1a",
-
-  // Subtle whites and grays
   starWhite: "#e8e6e3",
   softWhite: "#c4c0ba",
   dimGray: "#3a3a3a",
-
-  // Accretion disk — warm tones
-  accretionHot: "#fff4e0",   // Inner edge (white-hot)
-  accretionWarm: "#e87c2a",  // Mid-ring (deep orange)
-  accretionCool: "#8b2500",  // Outer edge (dark red)
-  accretionGlow: "#ff9a3c",  // Bloom glow
-
-  // Scientific UI
-  uiPrimary: "#94a3b8",     // Slate-400
-  uiSecondary: "#64748b",   // Slate-500
-  uiAccent: "#cbd5e1",      // Slate-300
-  uiMuted: "#1e293b",       // Slate-800
+  accretionHot: "#fff4e0",
+  accretionWarm: "#e87c2a",
+  accretionCool: "#8b2500",
+  accretionGlow: "#ff9a3c",
+  uiPrimary: "#94a3b8",
+  uiSecondary: "#64748b",
+  uiAccent: "#cbd5e1",
+  uiMuted: "#1e293b",
 } as const;
 
-// ─── Phase Configurations ───────────────────────────────────────────────────
-// Each phase occupies an equal portion of the scroll (0.2 each)
+// ─── Cinematic Phase Configurations ─────────────────────────────────────────
 export const PHASES: readonly PhaseConfig[] = [
   {
-    id: "nebula",
-    label: "Nebula",
+    id: "home",
+    label: "Home",
     scrollStart: 0.0,
-    scrollEnd: 0.2,
+    scrollEnd: 0.0,
     gravity: 0.0,
     cameraZ: 50,
   },
   {
+    id: "awakening",
+    label: "Awakening",
+    scrollStart: 0.0,
+    scrollEnd: 0.15,
+    gravity: 0.0,
+    cameraZ: 50,       // Camera stays still during awakening
+  },
+  {
+    id: "traversal",
+    label: "Traversal",
+    scrollStart: 0.15,
+    scrollEnd: 0.40,
+    gravity: 0.0,
+    cameraZ: 28,        // Camera advances through nebula
+  },
+  {
+    id: "revelation",
+    label: "Revelation",
+    scrollStart: 0.40,
+    scrollEnd: 0.60,
+    gravity: 0.05,
+    cameraZ: 15,        // Nebula fading, BH appearing
+  },
+  {
     id: "discovery",
     label: "Discovery",
-    scrollStart: 0.2,
-    scrollEnd: 0.4,
-    gravity: 0.05,
-    cameraZ: 30,
+    scrollStart: 0.60,
+    scrollEnd: 0.72,
+    gravity: 0.15,
+    cameraZ: 10,
   },
   {
     id: "approach",
     label: "Approach",
-    scrollStart: 0.4,
-    scrollEnd: 0.6,
-    gravity: 0.5,
-    cameraZ: 15,
+    scrollStart: 0.72,
+    scrollEnd: 0.82,
+    gravity: 0.6,
+    cameraZ: 5,
   },
   {
     id: "event-horizon",
     label: "Event Horizon",
-    scrollStart: 0.6,
-    scrollEnd: 0.8,
+    scrollStart: 0.82,
+    scrollEnd: 0.90,
     gravity: 0.9,
-    cameraZ: 3,
+    cameraZ: 1,
   },
   {
     id: "singularity",
     label: "Singularity",
-    scrollStart: 0.8,
+    scrollStart: 0.90,
     scrollEnd: 1.0,
     gravity: 1.0,
-    cameraZ: -18,  // Inside the black hole (BH is at z=-20)
+    cameraZ: -18,
   },
 ] as const;
 
-// ─── Performance Thresholds ─────────────────────────────────────────────────
+// ─── Camera Z Keyframes (for continuous interpolation) ──────────────────────
+// Maps scroll progress → camera Z position using linear segments
+export const CAMERA_KEYFRAMES = [
+  { scroll: 0.00, z: 50 },   // Home: still
+  { scroll: 0.15, z: 50 },   // Awakening: still (blur clearing)
+  { scroll: 0.40, z: 28 },   // Traversal: through nebula
+  { scroll: 0.60, z: 15 },   // Revelation: nebula fading
+  { scroll: 0.72, z: 10 },   // Discovery
+  { scroll: 0.82, z: 5 },    // Approach
+  { scroll: 0.90, z: 1 },    // Event Horizon
+  { scroll: 1.00, z: -18 },  // Singularity
+] as const;
+
+// ─── Performance ────────────────────────────────────────────────────────────
 export const PERFORMANCE = {
-  // FPS thresholds for quality regression
   fpsHigh: 55,
   fpsMedium: 35,
   fpsLow: 20,
-
-  // Particle counts per quality tier
-  particles: {
-    high: 15000,
-    medium: 8000,
-    low: 3000,
-  },
-
-  // DPR ranges
+  particles: { high: 15000, medium: 8000, low: 3000 },
   dprRange: [1, 2] as [number, number],
   dprMedium: 1.5,
   dprLow: 1,
-
-  // Rolling average window for FPS calculation
   fpsWindowSize: 60,
-  qualityDropDelay: 2000, // ms before downgrading
+  qualityDropDelay: 2000,
 } as const;
 
 // ─── Shader Constants ───────────────────────────────────────────────────────
 export const SHADER = {
-  // Black hole
-  schwarzschildRadius: 0.04,       // Reduced — v1 was too large and created blob artifacts
+  schwarzschildRadius: 0.04,
   accretionInnerRadius: 0.12,
   accretionOuterRadius: 0.45,
-  lensingMass: 0.008,              // Reduced — v1 distortion was too aggressive
-
-  // Gravity text
+  lensingMass: 0.008,
   textStretchMax: 3.0,
   textNoiseScale: 2.5,
   textGlitchIntensity: 0.15,
-
-  // Post-processing
-  bloomIntensity: 0.5,             // Slightly higher for accretion glow
-  bloomThreshold: 0.75,            // Lower threshold to catch more of the disk glow
-  chromaticMaxOffset: 0.003,       // Reduced — was too intense at high gravity
+  bloomIntensity: 0.5,
+  bloomThreshold: 0.75,
+  chromaticMaxOffset: 0.003,
 } as const;
 
 // ─── Camera ─────────────────────────────────────────────────────────────────
@@ -132,7 +154,7 @@ export const CAMERA = {
 
 // ─── Scroll ─────────────────────────────────────────────────────────────────
 export const SCROLL = {
-  pages: 6, // Total scroll pages (5 phases + buffer)
-  damping: 0.15, // Higher = smoother, weightier scroll
-  eps: 0.0005,   // Lower = more precise snap target detection
+  pages: 8,       // More pages = finer scroll control
+  damping: 0.18,
+  eps: 0.0005,
 } as const;

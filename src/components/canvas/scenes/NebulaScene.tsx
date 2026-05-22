@@ -1,19 +1,26 @@
 /**
- * NebulaScene — Scene 1: Entrance
- * ================================
- * Placeholder scene for Phase 1.
- * Will contain: volumetric nebula particles, intro text fade,
- * ambient cosmic dust, slow camera drift.
+ * NebulaScene — Scene 1: Cinematic Entrance
+ * ==========================================
+ * The user's first impression. A dense, volumetric nebula cloud
+ * (pink/purple tones) surrounds the camera. As they scroll,
+ * the nebula dissolves to reveal deep space and the black hole.
  *
- * Currently renders a minimal star field and title text.
+ * Components:
+ * - Nebula: Instanced particle cloud with GLSL volumetric noise
+ * - Ambient lighting: subtle purple wash
+ * - 3D Text removed — all text handled by DOM SceneOverlay
+ *
+ * The nebula remains visible during discovery phase (partially
+ * dissolved) for a seamless transition to the approach phase.
  */
 
 "use client";
 
 import { useRef } from "react";
 import { Group } from "three";
-import { Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
+
+import { Nebula } from "../objects/Nebula";
 
 interface NebulaSceneProps {
   active: boolean;
@@ -21,49 +28,43 @@ interface NebulaSceneProps {
 
 export function NebulaScene({ active }: NebulaSceneProps) {
   const groupRef = useRef<Group>(null!);
-  const textRef = useRef<any>(null);
 
-  useFrame((state) => {
+  useFrame(() => {
     if (!groupRef.current) return;
+    // Keep visible during nebula AND discovery (dissolve continues)
     groupRef.current.visible = active;
-
-    // Subtle text fade pulse
-    if (textRef.current?.material) {
-      textRef.current.material.opacity =
-        0.6 + Math.sin(state.clock.elapsedTime * 0.5) * 0.2;
-    }
   });
 
   return (
     <group ref={groupRef}>
-      <Text
-        ref={textRef}
-        position={[0, 0, 10]}
-        fontSize={0.8}
-        color="#e8e6e3"
-        anchorX="center"
-        anchorY="middle"
-        font="/fonts/SpaceGrotesk-Medium.ttf"
-        material-transparent
-        material-opacity={0.8}
-      >
-        EVENT HORIZON
-      </Text>
+      {/* ─── Volumetric Nebula Cloud ─────────────────────────────── */}
+      <Nebula />
 
-      <Text
-        position={[0, -1.2, 10]}
-        fontSize={0.2}
-        color="#64748b"
-        anchorX="center"
-        anchorY="middle"
-        font="/fonts/SpaceGrotesk-Medium.ttf"
-        material-transparent
-        material-opacity={0.6}
-      >
-        Scroll to begin your descent
-      </Text>
+      {/* ─── Ambient Light: subtle purple cosmic wash ────────────── */}
+      <ambientLight intensity={0.04} color="#1a0a2e" />
 
-      <ambientLight intensity={0.02} color="#0a0e1a" />
+      {/* ─── Point lights for internal nebula glow ───────────────── */}
+      <pointLight
+        position={[8, 5, 45]}
+        intensity={0.8}
+        color="#8b2a6b"
+        distance={30}
+        decay={2}
+      />
+      <pointLight
+        position={[-6, -3, 38]}
+        intensity={0.5}
+        color="#3a1860"
+        distance={25}
+        decay={2}
+      />
+      <pointLight
+        position={[0, 8, 50]}
+        intensity={0.3}
+        color="#c45590"
+        distance={20}
+        decay={2}
+      />
     </group>
   );
 }
