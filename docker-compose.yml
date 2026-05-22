@@ -1,0 +1,21 @@
+services:
+  event-horizon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development # Target the development stage with Hot Reload
+    container_name: event-horizon-app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      # Ensures Webpack/Turbopack fast refresh (hot reload) works reliably inside Docker on Windows/WSL
+      - WATCHPACK_POLLING=true
+    volumes:
+      # Synchronize host workspace with the container for instant hot reload
+      - .:/app
+      # Isolate build directories and packages to prevent conflicts with the host machine
+      - /app/node_modules
+      - /app/.next
+      - /app/rust/geodesic-lut/target
+    restart: unless-stopped

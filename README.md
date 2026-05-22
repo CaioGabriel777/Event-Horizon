@@ -52,7 +52,30 @@ Our solution is a **Hybrid Pipeline**:
 
 ## 💻 Getting Started
 
-### Prerequisites
+You can choose to run the project using **Docker** (recommended as it packages all Node, Rust, and WebAssembly dependencies automatically) or perform a **manual local installation**.
+
+### 🐳 Option 1: Running with Docker (Recommended)
+
+This is the easiest way to run the project without needing to install Node.js, Rust, or the WASM build toolchain on your host machine.
+
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd event-horizon
+   ```
+
+2. **Build and start the container:**
+   ```bash
+   docker compose up --build
+   ```
+
+3. Open [http://localhost:3000](http://localhost:3000) in your browser to experience the event horizon!
+
+---
+
+### 💻 Option 2: Manual Local Installation
+
+#### Prerequisites
 
 You need [Node.js](https://nodejs.org/) installed, and the [Rust toolchain](https://rustup.rs/) (including `cargo`) with `wasm-pack` installed to compile the geodesic LUT module.
 
@@ -61,23 +84,23 @@ You need [Node.js](https://nodejs.org/) installed, and the [Rust toolchain](http
 cargo install wasm-pack
 ```
 
-### Installation
+#### Installation
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd event-horizon
-```
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd event-horizon
+   ```
 
-2. Install dependencies:
-```bash
-npm install
-```
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-3. Start the development server:
-```bash
-npm run dev
-```
+3. **Start the development server:**
+   ```bash
+   npm run dev
+   ```
 
 *Note: The `dev` and `build` scripts automatically compile the Rust code to WASM and place it in the `public/wasm` directory via a `prebuild` hook.*
 
