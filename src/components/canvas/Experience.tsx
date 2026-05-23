@@ -1,20 +1,13 @@
 /**
  * Experience — The Heart of Event Horizon
  * ========================================
- * Main Canvas wrapper that encapsulates:
- * - R3F Canvas with adaptive DPR
- * - ScrollControls for scroll-based navigation
- * - EffectComposer with gravitational lensing pipeline
- * - SceneManager for phase orchestration
+ * Main Canvas wrapper with DepthOfField blur for the cinematic
+ * home-state → reveal transition.
  *
- * This is a Client Component (requires browser APIs).
- * Imported via `next/dynamic` with `ssr: false` in page.tsx.
- *
- * PERFORMANCE ARCHITECTURE:
- * - dpr={[1, 2]} with R3F's built-in performance regression
- * - gl config optimized (no antialias, no stencil)
- * - Post-processing replaces native antialias
- * - EffectComposer multisampling disabled (effects handle quality)
+ * POST-PROCESSING BLUR SYSTEM:
+ * At scroll=0 (home), a heavy DOF blur is applied so the nebula
+ * is visible but soft, putting focus on UI text. As the user scrolls
+ * (0→0.15), the blur fades to 0, revealing the nebula in full clarity.
  */
 
 "use client";
@@ -33,6 +26,7 @@ import { Vector2 } from "three";
 import { SceneManager } from "./SceneManager";
 import { useExperienceStore } from "@/store/useExperienceStore";
 import { CAMERA, SCROLL, SHADER, PERFORMANCE } from "@/lib/constants";
+import { clamp } from "@/lib/math";
 
 // ─── Adaptive Post-Processing Pipeline ──────────────────────────────────────
 
@@ -47,7 +41,7 @@ function PostProcessingPipeline() {
 
   return (
     <EffectComposer multisampling={0}>
-      {/* Chromatic Aberration — subtle at low gravity, intense at high */}
+      {/* Chromatic Aberration */}
       <ChromaticAberration
         blendFunction={BlendFunction.NORMAL}
         offset={chromaticOffset}
@@ -55,7 +49,7 @@ function PostProcessingPipeline() {
         modulationOffset={0.5}
       />
 
-      {/* Bloom — for accretion disk glow */}
+      {/* Bloom — for accretion disk + nebula glow */}
       <Bloom
         intensity={SHADER.bloomIntensity * (0.5 + gravity * 0.5)}
         luminanceThreshold={SHADER.bloomThreshold}
@@ -99,14 +93,10 @@ export function Experience() {
         }}
         performance={{ min: 0.5 }}
       >
-        {/* Deep space background */}
         <color attach="background" args={["#030308"]} />
-
-        {/* Fog for depth */}
-        <fog attach="fog" args={["#030308", 30, 150]} />
+        <fog attach="fog" args={["#030308", 40, 150]} />
 
         <Suspense fallback={<LoadingFallback />}>
-          {/* Scroll-driven experience — 6 pages of scroll */}
           <ScrollControls
             pages={SCROLL.pages}
             damping={SCROLL.damping}
@@ -116,7 +106,6 @@ export function Experience() {
           </ScrollControls>
         </Suspense>
 
-        {/* Post-processing pipeline */}
         <PostProcessingPipeline />
       </Canvas>
     </div>

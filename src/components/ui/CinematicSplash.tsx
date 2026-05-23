@@ -1,117 +1,133 @@
 /**
- * CinematicSplash — Apple-style Loading Transition
- * =================================================
- * Shows a beautiful, animated splash screen while the WebGL
- * Canvas and WASM modules are loading. This prevents the
- * "frozen screen" feeling by giving immediate visual feedback.
+ * CinematicSplash — Real GPU-Aware Loader
+ * ========================================
+ * Shows a black loading screen with a percentage counter that
+ * ACTUALLY waits for the Canvas to signal readiness (isReady).
  *
  * Flow:
- * 1. Immediately shows a dark screen with subtle animations
- * 2. Title fades in with a cinematic blur-to-sharp effect
- * 3. After a minimum display time, fades out to reveal the Canvas
- * 4. The scroll becomes functional only after the splash completes
- *
- * This mirrors Apple's approach: show a polished animation that
- * "tricks" the user into thinking it's intentional, not loading.
+ * 1. Shows immediately with 0%
+ * 2. Progress animates up to 85% on a timer (visual feedback)
+ * 3. Holds at 85% until isReady === true (real GPU compilation done)
+ * 4. Snaps to 100%, holds briefly, then fades out
+ * 5. Minimum 1.5s display time ensures no flash
  */
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useExperienceStore } from "@/store/useExperienceStore";
 
-interface CinematicSplashProps {
-  /** Minimum time to show the splash (ms). Ensures animation completes. */
-  minimumDisplayMs?: number;
-}
+const MINIMUM_MS = 1500;
 
-export function CinematicSplash({
-  minimumDisplayMs = 2800,
-}: CinematicSplashProps) {
+export function CinematicSplash() {
   const [visible, setVisible] = useState(true);
+  const [progress, setProgress] = useState(0);
+  const isReady = useExperienceStore((s) => s.isReady);
+  const startTime = useRef(Date.now());
+  const rafRef = useRef<number>(0);
 
+  // Phase 1: Animate to 85% on a timer (fake but provides UX feedback)
   useEffect(() => {
+    const animate = () => {
+      const elapsed = Date.now() - startTime.current;
+      const t = Math.min(1, elapsed / 2000); // 2s ramp
+      const eased = 1 - Math.pow(1 - t, 3);
+      const target = Math.round(eased * 85); // Cap at 85%
+
+      setProgress((prev) => Math.max(prev, target));
+
+      if (t < 1) {
+        rafRef.current = requestAnimationFrame(animate);
+      }
+    };
+    rafRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, []);
+
+  // Phase 2: When Canvas signals ready AND minimum time passed → 100%
+  useEffect(() => {
+    if (!isReady) return;
+
+    const elapsed = Date.now() - startTime.current;
+    const remaining = Math.max(0, MINIMUM_MS - elapsed);
+
     const timer = setTimeout(() => {
-      setVisible(false);
-    }, minimumDisplayMs);
+      setProgress(100);
+      // Hold at 100% briefly, then hide
+      setTimeout(() => setVisible(false), 500);
+    }, remaining);
 
     return () => clearTimeout(timer);
-  }, [minimumDisplayMs]);
+  }, [isReady]);
+
+  if (!visible) return null;
 
   return (
     <AnimatePresence>
       {visible && (
         <motion.div
-          key="splash"
+          key="loader"
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 1.5, ease: [0.25, 0.46, 0.45, 0.94] }}
-          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#020206]"
-          style={{ pointerEvents: visible ? "all" : "none" }}
+          transition={{ duration: 1.0, ease: [0.25, 0.46, 0.45, 0.94] }}
+          className="fixed inset-0 z-[100] flex flex-col items-center justify-center"
+          style={{
+            backgroundColor: "#020206",
+            pointerEvents: "all",
+          }}
         >
-          {/* Subtle radial gradient backdrop */}
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                "radial-gradient(ellipse at center, rgba(10,14,26,0.4) 0%, rgba(2,2,6,1) 70%)",
-            }}
-          />
-
-          {/* Animated title sequence */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, filter: "blur(12px)" }}
-            animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-            transition={{
-              duration: 1.8,
-              delay: 0.3,
-              ease: [0.25, 0.46, 0.45, 0.94],
-            }}
-            className="relative z-10 text-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="text-center"
           >
-            <h1
-              className="text-5xl md:text-7xl font-extralight tracking-[0.2em] text-slate-200/90"
-              style={{ fontFamily: "var(--font-space-grotesk), sans-serif" }}
+            <div
+              className="text-6xl md:text-8xl font-extralight tracking-widest"
+              style={{
+                color: "#e8d8f0",
+                fontFamily: "var(--font-space-grotesk), monospace",
+                fontVariantNumeric: "tabular-nums",
+              }}
             >
-              EVENT HORIZON
-            </h1>
-
-            <motion.div
-              initial={{ opacity: 0, width: 0 }}
-              animate={{ opacity: 1, width: "60%" }}
-              transition={{ duration: 1.2, delay: 1.2, ease: "easeInOut" }}
-              className="h-[1px] bg-gradient-to-r from-transparent via-slate-600 to-transparent mx-auto mt-6"
-            />
+              {progress}
+              <span
+                className="text-2xl md:text-3xl ml-1"
+                style={{ color: "#5a4a6a" }}
+              >
+                %
+              </span>
+            </div>
 
             <motion.p
               initial={{ opacity: 0 }}
-              animate={{ opacity: 0.5 }}
-              transition={{ duration: 1, delay: 1.8 }}
-              className="text-xs tracking-[0.5em] uppercase text-slate-500 mt-4"
+              animate={{ opacity: 0.4 }}
+              transition={{ delay: 0.3, duration: 1 }}
+              className="text-xs tracking-[0.5em] uppercase mt-6"
+              style={{ color: "#5a4a6a" }}
             >
-              Initializing spacetime
+              {progress < 100 ? "Compiling shaders" : "Ready"}
             </motion.p>
-          </motion.div>
 
-          {/* Subtle pulsing dot loader */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.6 }}
-            transition={{ duration: 0.8, delay: 2 }}
-            className="absolute bottom-12 flex gap-1.5"
-          >
-            {[0, 1, 2].map((i) => (
-              <motion.div
-                key={i}
-                animate={{ opacity: [0.3, 1, 0.3] }}
-                transition={{
-                  duration: 1.2,
-                  delay: i * 0.2,
-                  repeat: Infinity,
+            {/* Thin progress bar */}
+            <div
+              className="mt-8 mx-auto overflow-hidden"
+              style={{
+                width: 180,
+                height: 1,
+                backgroundColor: "rgba(90, 74, 106, 0.15)",
+              }}
+            >
+              <div
+                style={{
+                  width: `${progress}%`,
+                  height: "100%",
+                  backgroundColor: "#8b6a9e",
+                  transition: "width 0.3s ease-out",
                 }}
-                className="w-1 h-1 rounded-full bg-slate-500"
               />
-            ))}
+            </div>
           </motion.div>
         </motion.div>
       )}

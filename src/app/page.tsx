@@ -50,7 +50,7 @@ export default function Home() {
   return (
     <main className="relative w-full h-screen overflow-hidden" id="landing-page">
       {/* Cinematic splash — shows immediately while Canvas loads */}
-      <CinematicSplash minimumDisplayMs={2800} />
+      <CinematicSplash />
 
       {/* 3D Experience (fullscreen Canvas) */}
       <Experience />
