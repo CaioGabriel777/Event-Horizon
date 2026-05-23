@@ -15,7 +15,7 @@
 
 "use client";
 
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useLayoutEffect, useState, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
 import {
   InstancedMesh,
@@ -30,19 +30,26 @@ interface StarFieldProps {
   radius?: number;
 }
 
-export function StarField({ radius = 100 }: StarFieldProps) {
+export function StarField({ radius = 300 }: StarFieldProps) {
   const meshRef = useRef<InstancedMesh>(null!);
   const qualityTier = useExperienceStore((s) => s.qualityTier);
   const gravity = useExperienceStore((s) => s.gravity);
+  const isReady = useExperienceStore((s) => s.isReady);
 
-  const count = PERFORMANCE.particles[qualityTier];
+  const [lockedCount, setLockedCount] = useState(PERFORMANCE.particles[qualityTier]);
+
+  useEffect(() => {
+    if (!isReady) {
+      setLockedCount(PERFORMANCE.particles[qualityTier]);
+    }
+  }, [isReady, qualityTier]);
 
   // Pre-compute all instance transforms
   const { matrices, colors } = useMemo(() => {
     const tempMatrix = new Matrix4();
     const tempPosition = new Vector3();
     const mats: Matrix4[] = [];
-    const cols: Float32Array = new Float32Array(count * 3);
+    const cols: Float32Array = new Float32Array(lockedCount * 3);
 
     const starColor = new Color(COLORS.starWhite);
     const dimColor = new Color(COLORS.softWhite);
@@ -50,7 +57,7 @@ export function StarField({ radius = 100 }: StarFieldProps) {
     const warmColor = new Color("#ffe4c4");
     const coolColor = new Color("#c4d8ff");
 
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < lockedCount; i++) {
       // Distribute on a sphere with some clustering
       // EXCLUSION ZONE: no stars within a cylinder around the BH center
       // (BH is at [0, 0, -20], so we exclude a cylinder along the camera→BH axis)
@@ -92,12 +99,12 @@ export function StarField({ radius = 100 }: StarFieldProps) {
     }
 
     return { matrices: mats, colors: cols };
-  }, [count, radius]);
+  }, [lockedCount, radius]);
 
   // Apply instance transforms
-  useMemo(() => {
+  useLayoutEffect(() => {
     if (!meshRef.current) return;
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < lockedCount; i++) {
       meshRef.current.setMatrixAt(i, matrices[i]);
     }
     meshRef.current.instanceMatrix.needsUpdate = true;
@@ -105,7 +112,7 @@ export function StarField({ radius = 100 }: StarFieldProps) {
     // Apply per-instance colors
     const colorAttr = meshRef.current.instanceColor;
     if (colorAttr) {
-      for (let i = 0; i < count; i++) {
+      for (let i = 0; i < lockedCount; i++) {
         meshRef.current.setColorAt(
           i,
           new Color(colors[i * 3], colors[i * 3 + 1], colors[i * 3 + 2])
@@ -113,12 +120,14 @@ export function StarField({ radius = 100 }: StarFieldProps) {
       }
       meshRef.current.instanceColor!.needsUpdate = true;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meshRef.current, count]);
+  }, [lockedCount, matrices, colors]);
 
   // Subtle rotation of the entire star field
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (!meshRef.current) return;
+
+    // Efeito Skybox: Acompanhar a Câmera
+    meshRef.current.position.copy(state.camera.position);
 
     // Slow rotation — stars drift
     meshRef.current.rotation.y += delta * 0.005;
@@ -134,13 +143,13 @@ export function StarField({ radius = 100 }: StarFieldProps) {
   return (
     <instancedMesh
       ref={meshRef}
-      args={[undefined, undefined, count]}
+      args={[undefined, undefined, lockedCount]}
       frustumCulled={false}
       renderOrder={-1}
     >
       {/* 8 segments instead of 4 — smooth spheres, no pixelated look */}
       <sphereGeometry args={[1, 8, 8]} />
-      <meshBasicMaterial color={COLORS.starWhite} toneMapped={false} />
+      <meshBasicMaterial color={COLORS.starWhite} toneMapped={false} depthWrite={false} />
     </instancedMesh>
   );
 }
