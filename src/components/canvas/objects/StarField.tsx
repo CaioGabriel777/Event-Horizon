@@ -1,16 +1,9 @@
 /**
- * StarField — InstancedMesh Particle System
+ * StarField — Points Particle System
  * ==========================================
- * High-performance star field using InstancedMesh.
- * All positions and colors are computed once and stored in
- * instance matrices. No per-frame JavaScript updates needed
- * for static stars — animation is done via vertex shader.
- *
- * Particle count adapts to the quality tier from the experience store.
- *
- * VISUAL FIX: Uses higher-poly spheres (8 segments) to avoid the
- * pixelated/blocky appearance that was caused by using only 4 segments.
- * The visual cost is minimal because the spheres are tiny (0.02-0.08 scale).
+ * High-performance star field using THREE.Points and ShaderMaterial.
+ * Reduces the cost to 1 vertex per star compared to InstancedMesh.
+ * Implements an organic twinkling effect via GLSL.
  */
 
 "use client";
@@ -18,31 +11,68 @@
 import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import {
-  InstancedMesh,
-  Matrix4,
+  Points,
   Vector3,
   Color,
+  AdditiveBlending,
+  ShaderMaterial
 } from "three";
 import { useExperienceStore } from "@/store/useExperienceStore";
 import { PERFORMANCE, COLORS } from "@/lib/constants";
+
+const vertexShader = `
+uniform float uTime;
+attribute float size;
+attribute vec3 color;
+varying vec3 vColor;
+varying float vTwinkle;
+
+void main() {
+    vColor = color;
+    // Create a random twinkling pattern based on star position
+    vTwinkle = sin(uTime * 1.5 + position.x * 100.0 + position.y * 50.0) * 0.5 + 0.5;
+    
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    // Size attenuation based on depth
+    gl_PointSize = size * (250.0 / -mvPosition.z);
+    gl_Position = projectionMatrix * mvPosition;
+}
+`;
+
+const fragmentShader = `
+varying vec3 vColor;
+varying float vTwinkle;
+
+void main() {
+    // Draw a smooth procedural circle from the gl_PointCoord square
+    vec2 centerUv = gl_PointCoord.xy - vec2(0.5);
+    float dist = length(centerUv);
+    
+    if (dist > 0.5) discard; // Discard the corners of the square
+    
+    // Smooth edge and multiply by twinkle effect
+    float alpha = smoothstep(0.5, 0.1, dist) * (0.6 + vTwinkle * 0.4);
+    
+    gl_FragColor = vec4(vColor, alpha);
+}
+`;
 
 interface StarFieldProps {
   radius?: number;
 }
 
-export function StarField({ radius = 100 }: StarFieldProps) {
-  const meshRef = useRef<InstancedMesh>(null!);
-  const qualityTier = useExperienceStore((s) => s.qualityTier);
+export function StarField({ radius = 300 }: StarFieldProps) {
+  const meshRef = useRef<Points>(null!);
   const gravity = useExperienceStore((s) => s.gravity);
-
-  const count = PERFORMANCE.particles[qualityTier];
+  
+  const count = PERFORMANCE.particles.high;
 
   // Pre-compute all instance transforms
-  const { matrices, colors } = useMemo(() => {
-    const tempMatrix = new Matrix4();
+  const { positions, colors, sizes } = useMemo(() => {
     const tempPosition = new Vector3();
-    const mats: Matrix4[] = [];
-    const cols: Float32Array = new Float32Array(count * 3);
+    const pos = new Float32Array(count * 3);
+    const cols = new Float32Array(count * 3);
+    const szs = new Float32Array(count);
 
     const starColor = new Color(COLORS.starWhite);
     const dimColor = new Color(COLORS.softWhite);
@@ -53,7 +83,6 @@ export function StarField({ radius = 100 }: StarFieldProps) {
     for (let i = 0; i < count; i++) {
       // Distribute on a sphere with some clustering
       // EXCLUSION ZONE: no stars within a cylinder around the BH center
-      // (BH is at [0, 0, -20], so we exclude a cylinder along the camera→BH axis)
       let attempts = 0;
       do {
         const theta = Math.random() * Math.PI * 2;
@@ -62,20 +91,16 @@ export function StarField({ radius = 100 }: StarFieldProps) {
         tempPosition.setFromSphericalCoords(r, phi, theta);
         attempts++;
       } while (
-        // Small exclusion: only prevent stars directly on the BH center
-        // line-of-sight. Stars behind the BH are already handled by
-        // alphaTest + depthWrite on the BH shader material.
         Math.sqrt(tempPosition.x * tempPosition.x + tempPosition.y * tempPosition.y) < 6 &&
         tempPosition.z > -25 && tempPosition.z < 20 &&
         attempts < 5
       );
 
-      // Random scale for size variation
-      const scale = 0.02 + Math.random() * 0.06;
-      tempMatrix.makeTranslation(tempPosition.x, tempPosition.y, tempPosition.z);
-      tempMatrix.scale(new Vector3(scale, scale, scale));
+      pos[i * 3] = tempPosition.x;
+      pos[i * 3 + 1] = tempPosition.y;
+      pos[i * 3 + 2] = tempPosition.z;
 
-      mats.push(tempMatrix.clone());
+      szs[i] = Math.random() * 2.0 + 0.5;
 
       // Color variation: white, warm, and cool tones
       const colorRoll = Math.random();
@@ -91,34 +116,21 @@ export function StarField({ radius = 100 }: StarFieldProps) {
       cols[i * 3 + 2] = c.b * brightness;
     }
 
-    return { matrices: mats, colors: cols };
+    return { positions: pos, colors: cols, sizes: szs };
   }, [count, radius]);
 
-  // Apply instance transforms
-  useMemo(() => {
-    if (!meshRef.current) return;
-    for (let i = 0; i < count; i++) {
-      meshRef.current.setMatrixAt(i, matrices[i]);
-    }
-    meshRef.current.instanceMatrix.needsUpdate = true;
-
-    // Apply per-instance colors
-    const colorAttr = meshRef.current.instanceColor;
-    if (colorAttr) {
-      for (let i = 0; i < count; i++) {
-        meshRef.current.setColorAt(
-          i,
-          new Color(colors[i * 3], colors[i * 3 + 1], colors[i * 3 + 2])
-        );
-      }
-      meshRef.current.instanceColor!.needsUpdate = true;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meshRef.current, count]);
-
   // Subtle rotation of the entire star field
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (!meshRef.current) return;
+
+    // Update uTime in shaderMaterial for twinkling animation
+    const material = meshRef.current.material as ShaderMaterial;
+    if (material.uniforms) {
+      material.uniforms.uTime.value = state.clock.elapsedTime;
+    }
+
+    // Skybox Effect: Follow the camera position
+    meshRef.current.position.copy(state.camera.position);
 
     // Slow rotation — stars drift
     meshRef.current.rotation.y += delta * 0.005;
@@ -132,15 +144,37 @@ export function StarField({ radius = 100 }: StarFieldProps) {
   });
 
   return (
-    <instancedMesh
-      ref={meshRef}
-      args={[undefined, undefined, count]}
-      frustumCulled={false}
-      renderOrder={-1}
-    >
-      {/* 8 segments instead of 4 — smooth spheres, no pixelated look */}
-      <sphereGeometry args={[1, 8, 8]} />
-      <meshBasicMaterial color={COLORS.starWhite} toneMapped={false} />
-    </instancedMesh>
+    <points ref={meshRef} frustumCulled={false} renderOrder={-1}>
+      <bufferGeometry>
+        <bufferAttribute
+          attach="attributes-position"
+          count={positions.length / 3}
+          array={positions}
+          itemSize={3}
+        />
+        <bufferAttribute
+          attach="attributes-color"
+          count={colors.length / 3}
+          array={colors}
+          itemSize={3}
+        />
+        <bufferAttribute
+          attach="attributes-size"
+          count={sizes.length}
+          array={sizes}
+          itemSize={1}
+        />
+      </bufferGeometry>
+      <shaderMaterial
+        transparent={true}
+        depthWrite={false}
+        blending={AdditiveBlending}
+        vertexShader={vertexShader}
+        fragmentShader={fragmentShader}
+        uniforms={{
+          uTime: { value: 0 },
+        }}
+      />
+    </points>
   );
 }

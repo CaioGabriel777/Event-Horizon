@@ -24,6 +24,7 @@ import { BlendFunction } from "postprocessing";
 import { Vector2 } from "three";
 
 import { SceneManager } from "./SceneManager";
+import { StarField } from "./objects/StarField";
 import { useExperienceStore } from "@/store/useExperienceStore";
 import { CAMERA, SCROLL, SHADER, PERFORMANCE } from "@/lib/constants";
 import { clamp } from "@/lib/math";
@@ -95,6 +96,7 @@ export function Experience() {
       >
         <color attach="background" args={["#030308"]} />
         <fog attach="fog" args={["#030308", 40, 150]} />
+        <StarField />
 
         <Suspense fallback={<LoadingFallback />}>
           <ScrollControls

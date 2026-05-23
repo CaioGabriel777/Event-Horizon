@@ -15,7 +15,7 @@ import { Group } from "three";
 import { useFrame } from "@react-three/fiber";
 import { BlackHole } from "../objects/BlackHole";
 import { GravityText } from "../objects/GravityText";
-import { StarField } from "../objects/StarField";
+
 import { useExperienceStore } from "@/store/useExperienceStore";
 
 interface ApproachSceneProps {
@@ -38,8 +38,6 @@ export function ApproachScene({ active }: ApproachSceneProps) {
       {/* ─── The Black Hole (center of attention) ────────────────── */}
       <BlackHole position={[0, 0, -20]} scale={22} />
 
-      {/* ─── Star Field ──────────────────────────────────────────── */}
-      <StarField radius={80} />
 
       {/* ─── Gravity-Distorted Text Elements ─────────────────────── */}
       {/* Positioned on the LEFT side, far from the black hole center */}
