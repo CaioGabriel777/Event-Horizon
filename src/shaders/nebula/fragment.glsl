@@ -72,28 +72,17 @@ void main() {
 
     // ─── Procedural Cumuliform Cloud ─────────────────────────────────────────
     
-    // Generate complex noise to warp the distance field
-    // This turns a perfect circle into a torn, fluffy cloud chunk
-    vec2 fbmUv = vUv * 3.0 + vec2(vSeed * 20.0, uTime * 0.1);
+    float radialMask = smoothstep(0.5, 0.1, dist);
+    if (radialMask <= 0.0) discard;
+    vec2 fbmUv = vUv * 4.0 + vec2(vSeed * 20.0, uTime * 0.1);
     float noiseDistortion = fbm(fbmUv);
-    
-    // Warp the distance metric. 
-    // If noise is high, dist increases (carving into the circle).
-    float warpedDist = dist + (noiseDistortion * 0.35 - 0.15);
-
-    // Early discard based on the WARPED distance
-    if (warpedDist > 0.48) discard;
-
-    // Create the soft gas mask using the warped geometry
-    float mask = smoothstep(0.48, 0.1, warpedDist);
+    float mask = radialMask * noiseDistortion * 2.0; 
     
     // ─── Chemistry & Light ───────────────────────────────────────────────────
-    
     float isOxygen = smoothstep(0.4, 0.6, vColorVar);
     vec3 color = getChemicalColor(isOxygen, vInstancePos);
-
-    // Additive Hot Core: The center of the gas puff burns hotter
-    float core = exp(-warpedDist * warpedDist * 25.0) * vDensity;
+    
+    float core = exp(-dist * dist * 25.0) * vDensity;
     color += vec3(0.1, 0.3, 0.4) * core * isOxygen; 
     color += vec3(0.4, 0.1, 0.2) * core * (1.0 - isOxygen);
 

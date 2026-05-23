@@ -30,7 +30,7 @@ import fragmentShader from "@/shaders/nebula/fragment.glsl";
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 
-const PARTICLE_COUNT = 400;
+const PARTICLE_COUNT = 800;
 const CLOUD_CENTER_Z = 10; // Pushed far back. Camera is at Z=50. Distance = 40 units.
 
 // ─── Particle Distribution ─────────────────────────────────────────────────
@@ -67,7 +67,7 @@ function generateParticles(count: number) {
     
     // Uniform, massive scale to guarantee AdditiveBlending overlap.
     // Core areas get giant puffs, outer areas get medium puffs.
-    const scale = isCore ? 25 + Math.random() * 15 : 18 + Math.random() * 12;
+    const scale = isCore ? 45 + Math.random() * 25 : 30 + Math.random() * 20;
 
     mat.makeTranslation(pos.x, pos.y, pos.z);
     mat.multiply(new Matrix4().makeRotationZ(Math.random() * Math.PI));
