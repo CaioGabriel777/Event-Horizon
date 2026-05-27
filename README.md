@@ -38,15 +38,15 @@ Our solution is a **Hybrid Pipeline**:
 1. **Rust / WASM (Offline/Initialization):**
    - We simulate a grid of photons originating from the camera.
    - We use RK4 integration with 1500 steps to trace their paths through the curved spacetime.
-   - We record where each ray hits the accretion disk (radius and angle) and whether it gets captured by the event horizon.
-   - We output this data as a `256x256 RGBA Float32Array` DataTexture.
+   - We record the exact equatorial plane crossings (cosine/sine of the angle, radius, and Signed Distance Field to the disk boundaries).
+   - We output this data as a raw `256x256 RGBA Float32Array` buffer, which the main thread converts to half-floats (`Uint16Array` / `RGBA16F`) to enable high-performance, native WebGL 2 linear filtering on all GPU drivers.
 2. **Web Worker (Concurrency):**
-   - To prevent the browser from freezing during this heavy calculation (~4-10 seconds), the WASM is loaded and executed inside a background Web Worker.
+   - To prevent the browser from freezing during this heavy calculation (~2-5 seconds), the WASM is loaded and executed inside a background Web Worker.
 3. **GLSL Fragment Shader (Real-Time Rendering):**
-   - The shader projects the camera ray onto a 2D plane to find the corresponding "impact parameter".
-   - It samples the WASM-generated LUT texture.
-   - If the LUT says the ray hit the disk, the shader samples the accretion disk noise pattern at that specific angle/radius.
-   - If the WASM hasn't finished calculating yet, the shader seamlessly falls back to a lower-fidelity, real-time RK4 integration loop to keep the scene active.
+   - The shader projects the camera ray onto a 2D plane to find the corresponding "impact parameter" (b) and camera angle (theta).
+   - It samples the WASM-generated LUT texture using smooth bilinear filtering.
+   - It reconstructs the seam-free crossing angle using `atan2(sin, cos)` and checks the Signed Distance Field (SDF) using screen-space derivatives (`fwidth`) to render pixel-perfect, anti-aliased accretion disk borders.
+   - If the Web Worker hasn't finished calculating yet, the shader seamlessly falls back to a lower-fidelity, real-time RK4 integration loop to keep the scene active and interactive.
 
 ---
 
@@ -97,12 +97,17 @@ cargo install wasm-pack
    npm install
    ```
 
-3. **Start the development server:**
+3. **Compile the Geodesic LUT WASM module:**
+   ```bash
+   npm run build:wasm
+   ```
+
+4. **Start the development server:**
    ```bash
    npm run dev
    ```
 
-*Note: The `dev` and `build` scripts automatically compile the Rust code to WASM and place it in the `public/wasm` directory via a `prebuild` hook.*
+*Note: The `npm run build:wasm` command compiles the Rust code using `wasm-pack` and outputs it to `public/wasm`. It also runs automatically before building for production via the `prebuild` hook.*
 
 ---
 
