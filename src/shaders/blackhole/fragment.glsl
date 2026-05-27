@@ -108,11 +108,11 @@ vec3 blackbody(float t) {
 
 vec3 geodesicAcceleration(vec3 pos, vec3 vel) {
     float r2 = dot(pos, pos);
-    float r = sqrt(r2);
-    float r5 = r2 * r2 * r;
+    float invR = inversesqrt(r2);
+    float invR5 = invR * invR * invR * invR * invR;
     vec3 h = cross(pos, vel);
     float h2 = dot(h, h);
-    return -1.5 * SCHWARZSCHILD_R * h2 * pos / r5;
+    return -1.5 * SCHWARZSCHILD_R * h2 * pos * invR5;
 }
 
 void stepRK4(inout vec3 pos, inout vec3 vel, float dt) {
@@ -139,59 +139,62 @@ void stepRK4(inout vec3 pos, inout vec3 vel, float dt) {
 // From RK4: computed analytically. Edge uses aaStep(0, sdf) — pure AA.
 
 vec4 sampleDiskAtAngle(float r, float angle, float diskSDF) {
-    // AA gate via SDF: 1.0 inside, 0.0 outside, ~1 pixel transition.
-    // Since SDF is continuous through bilinear LUT, edges are perfectly round.
-    float sdfMask = aaStep(0.0, diskSDF);
+    // ─── Soften Bottom Edge (Analytic SDF) ───────────────────────────
+    // Analytic sub-texel AA via static smoothstep.
+    // Removed fwidth() because derivatives break near the singularity 
+    // due to extreme gravitational lensing (neighboring pixels jump to infinity).
+    float sdfMask = smoothstep(-0.02, 0.05, diskSDF);
     if (sdfMask < 0.001) return vec4(0.0);
 
+    // Smooth inner fade so it disappears before hitting the absolute zero of the SDF
+    float fadeInner = smoothstep(0.0, 0.4, r - DISK_INNER);
     float radialT = clamp(1.0 - (r - DISK_INNER) / (DISK_OUTER - DISK_INNER), 0.0, 1.0);
+    radialT *= fadeInner;
 
     // ─── Volumetric plasma pattern (dual-offset cartesian FBM) ───────
     vec2 posA = vec2(cos(angle), sin(angle)) * r;
     vec2 posB = vec2(-sin(angle), cos(angle)) * r;
 
+    // ─── OTIMIZAÇÃO DE PERFORMANCE (TAREFA 1) ────────────────────────
     float ct = cos(uTime * 0.2);
     float st = sin(uTime * 0.2);
     mat2 rot = mat2(ct, -st, st, ct);
     vec2 rotA = rot * posA;
     vec2 rotB = rot * posB;
 
-    float turbA = fbm(rotA * 0.7, 6);
-    float turbB = fbm(rotB * 0.7 + 50.0, 6);
+    // Reduced octaves from 6 to 3 for massive performance gain.
+    float turbA = fbm(rotA * 0.7, 3);
+    float turbB = fbm(rotB * 0.7 + 50.0, 3);
     float turb = mix(turbA, turbB, 0.5);
 
-    float detailA = fbm(rotA * 1.8 - uTime * 0.15, 3);
-    float detailB = fbm(rotB * 1.8 + 50.0 - uTime * 0.15, 3);
+    // Reduced detail octaves from 3 to 2
+    float detailA = fbm(rotA * 1.8 - uTime * 0.15, 2);
+    float detailB = fbm(rotB * 1.8 + 50.0 - uTime * 0.15, 2);
     float detail = mix(detailA, detailB, 0.5);
 
     float pattern = 0.35 + (turb * 0.5 + detail * 0.2) * 0.65;
 
-    // ─── Gravitational Redshift ──────────────────────────────────────
-    // Photons climbing out of the gravity well lose energy proportional
-    // to sqrt(1 - rs/r). Near ISCO (r=3), redshift ≈ 0.816.
-    // At r=12, redshift ≈ 0.957 — nearly unshifted.
-    // Artistic softening: mix with 1.0 so the inner edge doesn't go too dark.
-    float gRedshiftRaw = sqrt(max(1.0 - SCHWARZSCHILD_R / max(r, 1.0), 0.0));
+    // Fast approximation of redshift sqrt: sqrt(1-x) ≈ 1 - 0.5x
+    // Since r >= DISK_INNER (3.0), rs/r is at most 1/3. Approximation works well.
+    float rs_r = SCHWARZSCHILD_R / max(r, 1.0);
+    float gRedshiftRaw = 1.0 - 0.5 * rs_r;
     float gRedshift = mix(gRedshiftRaw, 1.0, 0.3); // never below ~0.57
 
-    // ─── Relativistic Beaming (Doppler Shift) — Artistically Clamped ─
-    // Physical formula: intensity ∝ (1 + cos(angle) * v_orb)^3
-    // The ^3 makes the receding side nearly black — too harsh for aesthetics.
-    // Solution: mix the raw beaming with 1.0 using a "brake" factor.
-    // At 0.35 brake, the darkest point is ~0.4× base intensity (not zero).
-    float orbitalV = 0.5 * sqrt(DISK_INNER / max(r, 0.1));
+    // Relativistic Beaming (Doppler Shift) — Artistically Clamped
+    // Using inversesqrt instead of sqrt(/) for speed
+    float orbitalV = 0.5 * inversesqrt(max(r, 0.1) / DISK_INNER);
     float dopplerFactor = 1.0 + cos(angle) * orbitalV;
     float rawBeaming = dopplerFactor * dopplerFactor * dopplerFactor; // ^3
     float beaming = mix(rawBeaming, 1.0, 0.35); // artistic brake
 
-    // Temperature drives blackbody color: hotter at inner edge,
-    // modulated by turbulence and Doppler.
-    float temp = pow(radialT, 0.75) * pattern;
+    // Temperature drives blackbody color: hotter at inner edge
+    // Removed pow(radialT, 0.75) for performance, raw radialT looks great
+    float temp = radialT * pattern;
     temp = clamp(temp * mix(rawBeaming, 1.0, 0.5), 0.0, 1.0);
     vec3 color = blackbody(temp);
 
     // Final intensity: radial falloff × turbulence × SDF edge × beaming × redshift
-    float intensity = pow(radialT, 0.8) * pattern;
+    float intensity = radialT * pattern;
     intensity *= sdfMask;
     intensity *= beaming;
     intensity *= gRedshift;
@@ -266,23 +269,14 @@ vec4 renderWithLUT(vec2 uv) {
     }
 
     // ─── EVENT HORIZON (analytic silhouette with smooth occlusion) ───
-    // Uses b vs B_CRITICAL directly — exact and continuous.
-    // aaStep with fwidth(b) gives a ~1 pixel soft edge at any scale.
-    //
-    // The key insight for eliminating the "gap" artifact:
-    // captureMask must BOTH set alpha to 1 AND zero the color for rays
-    // inside the shadow. But foreground disk light (already composited
-    // above) must be preserved. We use the accumulated disk alpha
-    // to distinguish "foreground disk in front of BH" from "empty ray
-    // behind BH".
+    // TAREFA 2: CORREÇÃO DA SILHUETA CINZA (OCCLUSION LEAK)
+    // The event horizon emits NO light (adds 0 to accColor), but it is
+    // perfectly opaque (blocks all background light). Any light currently
+    // in accColor came from the FOREGROUND disk passing in front.
+    // By simply pushing accAlpha to 1.0 where b < B_CRITICAL, we completely
+    // block the background stars without artificially darkening the 
+    // foreground plasma.
     float captureMask = 1.0 - aaStep(B_CRITICAL, b);
-
-    // For rays inside the shadow that have NO foreground disk:
-    // force color to absolute black AND alpha to 1 (opaque void).
-    // For rays that DO have foreground disk light: keep their color,
-    // only push alpha toward 1 (the void is behind the disk).
-    float fgDiskStrength = clamp(accAlpha * 3.0, 0.0, 1.0);
-    accColor *= (1.0 - captureMask * (1.0 - fgDiskStrength));
     accAlpha = max(accAlpha, captureMask);
 
     return vec4(accColor, accAlpha);
