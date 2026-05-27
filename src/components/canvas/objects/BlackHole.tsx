@@ -1,30 +1,33 @@
-/**
- * BlackHole — Procedural Raymarched Black Hole Component
- * ======================================================
- * Renders a supermassive black hole with:
- * - Schwarzschild event horizon
- * - Procedural accretion disk (FBM noise)
- * - Blackbody radiation coloring
- * - Doppler beaming
- * - Photon sphere glow
- *
- * Performance Architecture:
- * - When WASM geodesic LUT is available: single texture lookup per pixel (~50-100x faster)
- * - Fallback: per-pixel RK4 integration (original shader path)
- *
- * Rendering Strategy:
- * Uses alphaTest instead of transparency. The shader outputs alpha=1
- * for all BH-affected pixels (center, disk, ring) and alpha=0 for
- * areas with no effect. alphaTest discards alpha<threshold fragments,
- * while drawn fragments write to the depth buffer — properly occluding
- * stars behind the BH without the gray halo artifact.
- */
-
 "use client";
+
+/**
+ * Black Hole Component (React Three Fiber)
+ * =========================================================================
+ * This component is responsible for rendering the Gargantua-style black hole.
+ *
+ * Architecture & Integration:
+ *  1. WASM/Rust Pipeline: Relies on `useGeodesicLUT` to asynchronously
+ *     compute the Geodesic Lookup Table via a Rust Web Worker.
+ *  2. High-Fidelity Data: The LUT is injected into the shader as an RGBA16F 
+ *     (HalfFloat) DataTexture with native LinearFilter for smooth interpolation.
+ *  3. Seamless Transition: Initially renders using an analytic RK4 raytracer
+ *     (fallback), then atomically switches to the optimized LUT once ready,
+ *     preventing any visual glitches or "mixed states".
+ *  4. Screen-Space Rendering: Employs a simple PlaneGeometry acting as a 
+ *     render quad. The complex relativistic physics and raymarching are
+ *     executed entirely within the Fragment Shader.
+ */
 
 import { useRef, useMemo, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
-import { ShaderMaterial, DoubleSide, DataTexture, FloatType, RGBAFormat } from "three";
+import {
+  ShaderMaterial,
+  DoubleSide,
+  DataTexture,
+  FloatType,
+  RGBAFormat,
+  NormalBlending,
+} from "three";
 import { SHADER } from "@/lib/constants";
 import { useExperienceStore } from "@/store/useExperienceStore";
 import { useGeodesicLUT } from "@/hooks/useGeodesicLUT";
@@ -37,7 +40,8 @@ interface BlackHoleProps {
   scale?: number;
 }
 
-// 1x1 dummy texture to avoid null uniform (GLSL requires a valid sampler)
+// Creates an empty 1x1 fallback texture to satisfy the WebGL program
+// before the actual Rust LUT is computed and loaded.
 function createDummyTexture(): DataTexture {
   const tex = new DataTexture(
     new Float32Array([0, 0, 0, 0]),
@@ -56,12 +60,14 @@ export function BlackHole({
   const materialRef = useRef<ShaderMaterial>(null!);
 
   const gravity = useExperienceStore((s) => s.gravity);
+  const scrollProgress = useExperienceStore((s: any) => s.scrollProgress);
 
-  // Load WASM geodesic lookup table
-  const { texture: lutTexture, loading: lutLoading, computeTimeMs } = useGeodesicLUT();
+  const { texture: lutTexture } = useGeodesicLUT();
 
-  // Create uniforms once
   const dummyTex = useMemo(() => createDummyTexture(), []);
+
+  // Initialize shader uniforms. These are kept stable via useMemo.
+  // The 'uUseLUT' flag acts as the switch between the RK4 and LUT pathways.
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
@@ -71,33 +77,37 @@ export function BlackHole({
       uInnerRadius: { value: SHADER.accretionInnerRadius },
       uOuterRadius: { value: SHADER.accretionOuterRadius },
       uFov: { value: 1.3 },
-      // LUT uniforms
+      uScrollProgress: { value: 0 },
       uGeodesicLUT: { value: dummyTex },
       uUseLUT: { value: 0.0 },
     }),
     [dummyTex]
   );
 
-  // When LUT texture becomes available, update the uniform
+  // ─── ATOMIC LUT ACTIVATION ───────────────────────────────────────────
+  // All texture configuration (wrap/filter/needsUpdate) has already been
+  // done inside useGeodesicLUT, BEFORE the texture arrives here.
+  // This effect ONLY does two assignments — it doesn't mutate the texture.
+  // This eliminates the "mixed state" window between frames that caused
+  // visual glitches during the RK4 → LUT transition.
   useEffect(() => {
-    if (lutTexture && materialRef.current) {
-      materialRef.current.uniforms.uGeodesicLUT.value = lutTexture;
-      materialRef.current.uniforms.uUseLUT.value = 1.0;
-      console.log(
-        `[BlackHole] LUT enabled (computed in ${computeTimeMs}ms). ` +
-        `Shader switched from RK4 loop → texture lookup.`
-      );
-    }
-  }, [lutTexture, computeTimeMs]);
+    if (!lutTexture || !materialRef.current) return;
+    materialRef.current.uniforms.uGeodesicLUT.value = lutTexture;
+    materialRef.current.uniforms.uUseLUT.value = 1.0;
+  }, [lutTexture]);
 
-  // Animate uniforms every frame (no React re-render)
+  // ─── FRAME LOOP (ANIMATION) ──────────────────────────────────────────
   useFrame((state) => {
     if (!materialRef.current) return;
-
+    
+    // Update continuous time for accretion disk turbulence
     materialRef.current.uniforms.uTime.value = state.clock.elapsedTime;
+    
+    // Sync external store states
     materialRef.current.uniforms.uGravity.value = gravity;
+    materialRef.current.uniforms.uScrollProgress.value = scrollProgress;
 
-    // Mass scales with gravity for dramatic reveal
+    // Smoothly interpolate the black hole mass (easing) for visual transitions
     const targetMass = 0.3 + gravity * 0.7;
     materialRef.current.uniforms.uMass.value +=
       (targetMass - materialRef.current.uniforms.uMass.value) * 0.05;
@@ -105,17 +115,17 @@ export function BlackHole({
 
   return (
     <mesh position={position} scale={scale} renderOrder={10}>
-      <planeGeometry args={[2, 2, 1, 1]} />
+      <planeGeometry args={[5, 5]} />
       <shaderMaterial
         ref={materialRef}
         vertexShader={vertexShader}
         fragmentShader={fragmentShader}
         uniforms={uniforms}
         side={DoubleSide}
-        transparent={false}
-        alphaTest={0.005}
-        depthWrite={true}
+        transparent={true}
+        depthWrite={false}
         depthTest={true}
+        blending={NormalBlending}
       />
     </mesh>
   );

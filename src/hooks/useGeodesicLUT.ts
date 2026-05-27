@@ -1,16 +1,22 @@
 /**
  * useGeodesicLUT — WASM-powered Geodesic Lookup Table
- * ====================================================
- * Loads the Rust/WASM geodesic module in a Web Worker, computes a
- * 256×256 Float32 DataTexture containing precomputed ray paths,
- * and provides it as a Three.js DataTexture for the shader.
+ * ======================================================================
+ * This hook manages the asynchronous generation of the Geodesic Lookup Table
+ * using a dedicated Web Worker and Rust/WASM to prevent main thread blocking.
  *
- * Architecture:
- * - Main thread: creates Worker, receives result, builds DataTexture
- * - Web Worker: loads WASM, runs compute_geodesic_lut(), transfers data back
- *
- * This keeps the UI fully responsive during the ~1-17s computation.
- * The resulting texture is reused every frame as a shader uniform.
+ * Architecture & Data Flow:
+ *  1. Worker Communication: Spawns the Web Worker, requests the computation,
+ *     and receives the computed Float32Array containing the geodesic data.
+ *  
+ *  2. HalfFloat Conversion: Converts the received 32-bit floats into 16-bit
+ *     half-floats (Uint16Array) using Three.js DataUtils.toHalfFloat().
+ *     This precision is sufficient for the LUT and ensures maximum compatibility.
+ *  
+ *  3. Texture Generation: Wraps the converted data into a Three.js DataTexture
+ *     using the HalfFloatType format. This is critical because RGBA16F enjoys 
+ *     native LinearFilter support across all WebGL 2 contexts without requiring 
+ *     any external OES extensions, guaranteeing the texture is always "complete"
+ *     and renders smoothly on all devices.
  */
 
 "use client";
@@ -18,7 +24,8 @@
 import { useState, useEffect } from "react";
 import {
   DataTexture,
-  FloatType,
+  DataUtils,
+  HalfFloatType,
   RGBAFormat,
   LinearFilter,
   ClampToEdgeWrapping,
@@ -30,6 +37,7 @@ interface GeodesicLUTState {
   error: string | null;
   computeTimeMs: number | null;
 }
+
 
 export function useGeodesicLUT(): GeodesicLUTState {
   const [state, setState] = useState<GeodesicLUTState>({
@@ -44,7 +52,6 @@ export function useGeodesicLUT(): GeodesicLUTState {
     let worker: Worker | null = null;
 
     try {
-      // Create the Web Worker
       worker = new Worker(
         new URL("../workers/geodesicLUT.worker.ts", import.meta.url)
       );
@@ -55,22 +62,38 @@ export function useGeodesicLUT(): GeodesicLUTState {
         if (e.data.type === "result") {
           const { data, lutSize, timeMs } = e.data;
 
-          // Create Three.js DataTexture from the Worker output
+          // ─── Convert Float32 → Uint16 (Half Float) ────────────────
+          // The worker outputs a Float32Array (32-bit per channel).
+          // RGBA32F requires OES_texture_float_linear for LinearFilter —
+          // some drivers reject the texture as "incomplete" without it.
+          // RGBA16F (HalfFloat) has native LinearFilter support in WebGL 2
+          // with no extensions. Precision loss is negligible for LUT data:
+          // half-float covers ±65504 with ~3 decimal digits of mantissa.
+          const f32: Float32Array = e.data.data as Float32Array;
+          const f16 = new Uint16Array(f32.length);
+
+          // 2. Converte número por número usando o DataUtils
+          for (let i = 0; i < f32.length; i++) {
+            f16[i] = DataUtils.toHalfFloat(f32[i]);
+          }
+
+          // ─── Create texture with final parameters (all set before upload) ───
           const texture = new DataTexture(
-            data as Float32Array,
+            f16,
             lutSize,
             lutSize,
             RGBAFormat,
-            FloatType
+            HalfFloatType
           );
           texture.minFilter = LinearFilter;
           texture.magFilter = LinearFilter;
           texture.wrapS = ClampToEdgeWrapping;
           texture.wrapT = ClampToEdgeWrapping;
+          texture.generateMipmaps = false;
           texture.needsUpdate = true;
 
           console.log(
-            `[GeodesicLUT] Computed ${lutSize}×${lutSize} LUT in ${timeMs}ms (Web Worker)`
+            `[GeodesicLUT] LUT ${lutSize}×${lutSize} ready in ${timeMs}ms (RGBA16F, LinearFilter)`
           );
 
           setState({
@@ -80,22 +103,18 @@ export function useGeodesicLUT(): GeodesicLUTState {
             computeTimeMs: timeMs,
           });
 
-          // Worker no longer needed
           worker?.terminate();
           worker = null;
         }
 
         if (e.data.type === "error") {
           console.warn("[GeodesicLUT] Worker error:", e.data.message);
-          console.warn("[GeodesicLUT] Falling back to shader-based RK4");
-
           setState({
             texture: null,
             loading: false,
             error: e.data.message,
             computeTimeMs: null,
           });
-
           worker?.terminate();
           worker = null;
         }
@@ -103,29 +122,21 @@ export function useGeodesicLUT(): GeodesicLUTState {
 
       worker.onerror = (err) => {
         if (cancelled) return;
-
         console.warn("[GeodesicLUT] Worker failed:", err.message);
-        console.warn("[GeodesicLUT] Falling back to shader-based RK4");
-
         setState({
           texture: null,
           loading: false,
           error: err.message || "Worker failed",
           computeTimeMs: null,
         });
-
         worker?.terminate();
         worker = null;
       };
 
-      // Start computation
       worker.postMessage({ type: "compute" });
     } catch (err) {
-      const errorMsg =
-        err instanceof Error ? err.message : "Failed to create Worker";
+      const errorMsg = err instanceof Error ? err.message : "Failed to create Worker";
       console.warn("[GeodesicLUT] Cannot create Worker:", errorMsg);
-      console.warn("[GeodesicLUT] Falling back to shader-based RK4");
-
       setState({
         texture: null,
         loading: false,

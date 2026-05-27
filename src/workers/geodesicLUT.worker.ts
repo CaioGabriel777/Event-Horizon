@@ -44,40 +44,35 @@ self.onmessage = async function (e: MessageEvent) {
     };
 
     // Instantiate WASM via streaming fetch
-    const wasmResponse = fetch("/wasm/geodesic_lut_bg.wasm");
+    const wasmResponse = fetch(`/wasm/geodesic_lut_bg.wasm?v=${Date.now()}`);
     const { instance } = await WebAssembly.instantiateStreaming(
       wasmResponse,
       imports
     );
     instanceRef = instance;
 
-    const exports = instance.exports as unknown as WasmExports;
+    const exports = instance.exports as any;
 
-    // Initialize WASM
-    exports.__wbindgen_start();
+    if (exports.__wbindgen_start) exports.__wbindgen_start();
 
-    // Compute the LUT (this is the heavy part, but we're in a Worker!)
+    // 1. Run the computation (this writes directly to the static buffer in Rust)
     const t0 = performance.now();
-    const result = exports.compute_geodesic_lut();
+    exports.compute_geodesic_lut_raw();
     const t1 = performance.now();
 
-    const ptr = result[0] >>> 0;
-    const len = result[1] >>> 0;
+    // 2. Get the exact memory pointer and size (guaranteed, no undefined!)
+    const ptr = exports.get_lut_ptr() >>> 0;
+    const lutSize = exports.get_lut_size() >>> 0;
+    const len = lutSize * lutSize * 4; // Total elements in the Float32Array
 
-    // Read Float32Array from WASM memory
+    // 3. Read the precise memory slice
     const wasmMemory = new Float32Array(exports.memory.buffer);
-    const data = wasmMemory.subarray(ptr / 4, ptr / 4 + len).slice();
+    const data = wasmMemory.subarray(ptr / 4, (ptr / 4) + len).slice();
 
-    // Free WASM memory
-    exports.__wbindgen_free(ptr, len * 4, 4);
+    // Free WASM memory is no longer required because the buffer is static (no leaks).
 
-    const lutSize = exports.lut_size() >>> 0;
-    const timeMs = Math.round(t1 - t0);
-
-    // Transfer the array buffer back to main thread (zero-copy)
-    self.postMessage(
-      { type: "result", data, lutSize, timeMs },
-      // @ts-expect-error — transferable objects
+    (self as any).postMessage(
+      { type: "result", data, lutSize, timeMs: Math.round(t1 - t0) },
       [data.buffer]
     );
   } catch (err) {
