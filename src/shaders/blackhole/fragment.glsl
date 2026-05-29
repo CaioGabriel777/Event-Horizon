@@ -1,23 +1,29 @@
 /**
- * Black Hole — Fragment Shader v4 (Gargantua Aesthetics)
- * ========================================================
- * Depends on LUT v2 from Rust (lib.rs) which stores:
- *   R = cos(disk_angle)
- *   G = sin(disk_angle)
- *   B = disk_r (disk crossing radius)
- *   A = disk_sdf (signed distance to the disk annulus boundary)
+ * Black Hole — Fragment Shader (Volumetric Gargantua)
+ * ====================================================================
+ * Renders a physically-based Schwarzschild black hole with a volumetric
+ * accretion disk, using a precomputed Geodesic LUT from Rust/WASM.
  *
- * All channels are CONTINUOUS — bilinear interpolation works correctly
- * without destroying artificial discontinuities.
+ * LUT Channel Layout (from lib.rs):
+ *   R = cos(disk_angle)   — seam-free angular encoding
+ *   G = sin(disk_angle)   — seam-free angular encoding
+ *   B = disk_r             — equatorial plane crossing radius
+ *   A = disk_sdf           — signed distance to disk annulus boundary
  *
- * v4 changes:
- *  - LUT range expanded to [0.0, 18.0] (was [1.5, 15.0]) to eliminate
- *    the front-of-disk cone pinching caused by b < 1.5 edge clamping.
- *  - Proper relativistic beaming: (1 + cos(angle) * v_orbital)^3 formula.
- *  - Gravitational redshift dimming near ISCO.
- *  - Capture silhouette via analytic b vs b_critical (not from LUT).
+ * Hybrid Rendering Architecture:
+ *   The LUT's bilinear interpolation is fundamentally corrupted at the
+ *   event horizon boundary (b ≈ B_CRITICAL), where captured-ray texels
+ *   (all zeros) blend with escaped-ray texels (valid disk data).
+ *   To fix this, main() routes pixels near the horizon (b < 3.2) to
+ *   the mathematically flawless RK4 integrator, and uses the fast LUT
+ *   for the vast background disk (b >= 3.2). A smooth blend zone
+ *   (b ∈ [2.8, 3.2]) prevents visible seams between the two engines.
+ *
+ * Compositing (LUT path only):
+ *   The disk is split into FRONT (diskSin > 0, camera-side) and BACK
+ *   (diskSin < 0, far-side) layers. The event horizon shadow occludes
+ *   ONLY the back layer. The front layer composites ON TOP via alpha-over.
  */
-
 
 varying vec2 vUv;
 varying vec3 vRayDir;
@@ -34,7 +40,6 @@ uniform float uScrollProgress;
 uniform sampler2D uGeodesicLUT;
 uniform float uUseLUT;
 
-
 const float SCHWARZSCHILD_R = 1.0;
 const float DISK_INNER = 3.0;
 const float DISK_OUTER = 12.0;
@@ -42,14 +47,13 @@ const int   MAX_STEPS = 80;
 const float PI = 3.14159265359;
 const float TAU = 6.28318530718;
 
-// Linear b mapping — must match Rust lib.rs exactly.
+// Impact parameter range — must match Rust lib.rs exactly.
 const float LUT_B_MIN = 0.0;
 const float LUT_B_MAX = 18.0;
 const float LUT_B_RANGE = 18.0;
 
-// Schwarzschild critical impact parameter — analytic horizon boundary.
-const float B_CRITICAL = 2.598076; // 3√3/2
-
+// Analytic critical impact parameter for a Schwarzschild black hole.
+const float B_CRITICAL = 2.598076; // 3√3 / 2
 
 // ─── AA Helpers ─────────────────────────────────────────────────────────────
 
@@ -89,13 +93,14 @@ float fbm(vec2 p, int octaves) {
 }
 
 // ─── Blackbody ──────────────────────────────────────────────────────────────
+// Pure deep reds at the cold end — no gray or soot tones.
 
 vec3 blackbody(float t) {
     vec3 white = vec3(1.0, 0.98, 0.95);
     vec3 gold  = vec3(1.0, 0.82, 0.45);
     vec3 amber = vec3(0.95, 0.55, 0.15);
-    vec3 ember = vec3(0.6, 0.2, 0.03);
-    vec3 dark  = vec3(0.15, 0.03, 0.0);
+    vec3 ember = vec3(0.85, 0.30, 0.05);
+    vec3 dark  = vec3(0.40, 0.05, 0.00);
 
     t = clamp(t, 0.0, 1.0);
     if (t > 0.8) return mix(gold, white, (t - 0.8) / 0.2);
@@ -104,7 +109,8 @@ vec3 blackbody(float t) {
     return mix(dark, ember, t / 0.2);
 }
 
-// ─── Geodesic RK4 (fallback) ────────────────────────────────────────────────
+// ─── Geodesic RK4 ───────────────────────────────────────────────────────────
+// Hardware-accelerated inversesqrt replaces expensive sqrt + division.
 
 vec3 geodesicAcceleration(vec3 pos, vec3 vel) {
     float r2 = dot(pos, pos);
@@ -135,71 +141,68 @@ void stepRK4(inout vec3 pos, inout vec3 vel, float dt) {
 }
 
 // ─── Sample Disk ────────────────────────────────────────────────────────────
-// Receives disk SDF as parameter. From LUT: channel A (bilinear interpolated).
-// From RK4: computed analytically. Edge uses aaStep(0, sdf) — pure AA.
+// Volumetric gas aesthetic with decoupled opacity and brightness.
+// diskSDF controls the anti-aliased edge (from LUT or analytic in RK4).
+// Opacity is driven by gas density, independent of Doppler dimming.
 
 vec4 sampleDiskAtAngle(float r, float angle, float diskSDF) {
-    // ─── Soften Bottom Edge (Analytic SDF) ───────────────────────────
-    // Analytic sub-texel AA via static smoothstep.
-    // Removed fwidth() because derivatives break near the singularity 
-    // due to extreme gravitational lensing (neighboring pixels jump to infinity).
+    // SDF edge gate — static smoothstep, no fwidth needed
     float sdfMask = smoothstep(-0.02, 0.05, diskSDF);
     if (sdfMask < 0.001) return vec4(0.0);
 
-    // Smooth inner fade so it disappears before hitting the absolute zero of the SDF
+    // Radial density profile with smooth inner fade
     float fadeInner = smoothstep(0.0, 0.4, r - DISK_INNER);
     float radialT = clamp(1.0 - (r - DISK_INNER) / (DISK_OUTER - DISK_INNER), 0.0, 1.0);
     radialT *= fadeInner;
 
-    // ─── Volumetric plasma pattern (dual-offset cartesian FBM) ───────
+    // Volumetric gas pattern via dual-offset FBM
     vec2 posA = vec2(cos(angle), sin(angle)) * r;
     vec2 posB = vec2(-sin(angle), cos(angle)) * r;
 
-    // ─── OTIMIZAÇÃO DE PERFORMANCE (TAREFA 1) ────────────────────────
-    float ct = cos(uTime * 0.2);
-    float st = sin(uTime * 0.2);
+    float ct = cos(uTime * 0.15);
+    float st = sin(uTime * 0.15);
     mat2 rot = mat2(ct, -st, st, ct);
     vec2 rotA = rot * posA;
     vec2 rotB = rot * posB;
 
-    // Reduced octaves from 6 to 3 for massive performance gain.
-    float turbA = fbm(rotA * 0.7, 3);
-    float turbB = fbm(rotB * 0.7 + 50.0, 3);
+    float turbA = fbm(rotA * 0.6, 3);
+    float turbB = fbm(rotB * 0.6 + 50.0, 3);
     float turb = mix(turbA, turbB, 0.5);
 
-    // Reduced detail octaves from 3 to 2
-    float detailA = fbm(rotA * 1.8 - uTime * 0.15, 2);
-    float detailB = fbm(rotB * 1.8 + 50.0 - uTime * 0.15, 2);
+    float detailA = fbm(rotA * 1.5 - uTime * 0.1, 2);
+    float detailB = fbm(rotB * 1.5 + 50.0 - uTime * 0.1, 2);
     float detail = mix(detailA, detailB, 0.5);
 
-    float pattern = 0.35 + (turb * 0.5 + detail * 0.2) * 0.65;
+    // Gas cloud density from FBM
+    float gasClouds = smoothstep(0.1, 0.9, turb * 0.7 + detail * 0.3);
+    float pattern = mix(0.3, 1.0, gasClouds);
+    float density = radialT * pattern;
 
-    // Fast approximation of redshift sqrt: sqrt(1-x) ≈ 1 - 0.5x
-    // Since r >= DISK_INNER (3.0), rs/r is at most 1/3. Approximation works well.
-    float rs_r = SCHWARZSCHILD_R / max(r, 1.0);
-    float gRedshiftRaw = 1.0 - 0.5 * rs_r;
-    float gRedshift = mix(gRedshiftRaw, 1.0, 0.3); // never below ~0.57
+    // Gravitational redshift: sqrt(1 - rs/r) ≈ 1 - 0.5 * rs/r
+    float physR = max(r, DISK_INNER);
+    float rs_r = SCHWARZSCHILD_R / physR;
+    float gRedshift = mix(1.0 - 0.5 * rs_r, 1.0, 0.3);
 
-    // Relativistic Beaming (Doppler Shift) — Artistically Clamped
-    // Using inversesqrt instead of sqrt(/) for speed
-    float orbitalV = 0.5 * inversesqrt(max(r, 0.1) / DISK_INNER);
+    // Relativistic beaming (Doppler): artistic brake at 0.5
+    // prevents the receding side from going pitch black
+    float orbitalV = 0.5 * inversesqrt(physR / DISK_INNER);
     float dopplerFactor = 1.0 + cos(angle) * orbitalV;
-    float rawBeaming = dopplerFactor * dopplerFactor * dopplerFactor; // ^3
-    float beaming = mix(rawBeaming, 1.0, 0.35); // artistic brake
+    float rawBeaming = dopplerFactor * dopplerFactor * dopplerFactor;
+    float beaming = mix(rawBeaming, 1.0, 0.5);
 
-    // Temperature drives blackbody color: hotter at inner edge
-    // Removed pow(radialT, 0.75) for performance, raw radialT looks great
-    float temp = radialT * pattern;
-    temp = clamp(temp * mix(rawBeaming, 1.0, 0.5), 0.0, 1.0);
+    // Blackbody temperature: hotter at inner edge, modulated by turbulence
+    float temp = clamp(radialT * pattern * mix(dopplerFactor, 1.0, 0.5), 0.0, 1.0);
     vec3 color = blackbody(temp);
 
-    // Final intensity: radial falloff × turbulence × SDF edge × beaming × redshift
-    float intensity = radialT * pattern;
-    intensity *= sdfMask;
-    intensity *= beaming;
-    intensity *= gRedshift;
+    // Brightness: density × beaming × redshift × SDF edge
+    float brightness = clamp(density * beaming * gRedshift * 2.5, 0.0, 1.0);
 
-    return vec4(color * intensity, clamp(intensity, 0.0, 1.0));
+    // Opacity: decoupled from Doppler — dense gas stays opaque even when
+    // dimmed by redshift on the receding side. This ensures the disk
+    // properly occludes stars and the back layer behind it.
+    float alpha = sdfMask * clamp(pow(density * 3.0, 1.2), 0.0, 1.0);
+
+    return vec4(color * brightness, alpha);
 }
 
 // ─── Camera ────────────────────────────────────────────────────────────────
@@ -224,11 +227,12 @@ CameraRay setupCamera(vec2 uv) {
 }
 
 // ─── LUT Path ──────────────────────────────────────────────────────────────
+// Clean front/back compositing. No ghost suppression masks — the hybrid
+// routing in main() ensures this function is never called near B_CRITICAL.
 
 vec4 renderWithLUT(vec2 uv) {
     CameraRay cam = setupCamera(uv);
 
-    // Project ray onto z=0 plane to extract (b, θ) — identical to Rust.
     float tZ = -cam.pos.z / cam.dir.z;
     vec3 target = cam.pos + cam.dir * tZ;
 
@@ -236,54 +240,52 @@ vec4 renderWithLUT(vec2 uv) {
     float theta = atan(target.y, target.x);
     if (theta < 0.0) theta += TAU;
 
-    // Linear U mapping (no sqrt) — must match Rust lib.rs.
     float lutU = clamp((b - LUT_B_MIN) / LUT_B_RANGE, 0.0, 1.0);
     float lutV = theta / TAU;
 
     vec4 g = texture2D(uGeodesicLUT, vec2(lutU, lutV));
 
-    // Reconstruct angle from (cos, sin) — seam-free across ±π.
-    // Bilinear interpolated vectors may have magnitude < 1 near real
-    // discontinuities, but atan2 still returns a valid angle.
     float diskCos = g.r;
     float diskSin = g.g;
     float diskAngle = atan(diskSin, diskCos);
-
     float diskR   = g.b;
     float diskSDF = g.a;
 
-    vec3 accColor = vec3(0.0);
-    float accAlpha = 0.0;
-
-    // ─── DISK ─────────────────────────────────────────────────────────
-    // Edge controlled by LUT SDF, not by binary flag.
-    // sampleDiskAtAngle does aaStep(0, sdf) internally and already
-    // applies gravitational redshift + relativistic beaming.
+    // ─── DISK SAMPLING & LAYER SPLIT ────────────────────────────────
+    vec4 diskSample = vec4(0.0);
     if (diskR > 0.0) {
-        vec4 diskSample = sampleDiskAtAngle(diskR, diskAngle, diskSDF);
-        if (diskSample.a > 0.001) {
-            // Redshift already baked into sampleDiskAtAngle — composite directly.
-            accColor += diskSample.rgb * (1.0 - accAlpha);
-            accAlpha += diskSample.a * (1.0 - accAlpha);
-        }
+        diskSample = sampleDiskAtAngle(diskR, diskAngle, diskSDF);
     }
 
-    // ─── EVENT HORIZON (analytic silhouette with smooth occlusion) ───
-    // TAREFA 2: CORREÇÃO DA SILHUETA CINZA (OCCLUSION LEAK)
-    // The event horizon emits NO light (adds 0 to accColor), but it is
-    // perfectly opaque (blocks all background light). Any light currently
-    // in accColor came from the FOREGROUND disk passing in front.
-    // By simply pushing accAlpha to 1.0 where b < B_CRITICAL, we completely
-    // block the background stars without artificially darkening the 
-    // foreground plasma.
+    // Front/Back depth decomposition based on diskSin (from LUT).
+    // diskSin > 0 → ray crossed on the camera side (FRONT of BH)
+    // diskSin < 0 → ray crossed on the far side (BACK of BH)
+    float frontWeight = smoothstep(-0.15, 0.15, diskSin);
+
+    vec3 frontColor = diskSample.rgb * frontWeight;
+    float frontAlpha = diskSample.a * frontWeight;
+
+    vec3 backColor = diskSample.rgb * (1.0 - frontWeight);
+    float backAlpha = diskSample.a * (1.0 - frontWeight);
+
+    // ─── EVENT HORIZON (analytic silhouette) ────────────────────────
+    // captureMask occludes ONLY the back layer.
+    // Front disk composites ON TOP via alpha-over.
     float captureMask = 1.0 - aaStep(B_CRITICAL, b);
-    accAlpha = max(accAlpha, captureMask);
+
+    vec3 bgColor = backColor * (1.0 - captureMask);
+    float bgAlpha = captureMask + backAlpha * (1.0 - captureMask);
+
+    // Alpha-over composite: front disk ON TOP of (shadow + back disk)
+    vec3 accColor = frontColor + bgColor * (1.0 - frontAlpha);
+    float accAlpha = frontAlpha + bgAlpha * (1.0 - frontAlpha);
 
     return vec4(accColor, accAlpha);
 }
 
-// ─── RK4 Path (fallback) ───────────────────────────────────────────────────
-// The fallback computes the SDF analytically from hit_r — no LUT needed.
+// ─── RK4 Path ──────────────────────────────────────────────────────────────
+// Mathematically flawless ray marching — no LUT interpolation artifacts.
+// Used for the core region (b < 3.2) where the LUT is corrupted.
 
 vec4 renderWithRK4(vec2 uv) {
     CameraRay cam = setupCamera(uv);
@@ -331,22 +333,84 @@ vec4 renderWithRK4(vec2 uv) {
 }
 
 // ─── Main ───────────────────────────────────────────────────────────────────
+// Hybrid routing: RK4 for the core, LUT for the background disk.
+// Smooth blend zone (b ∈ [2.8, 3.2]) prevents visible seams.
 
 void main() {
-    vec4 result = uUseLUT > 0.5 ? renderWithLUT(vUv) : renderWithRK4(vUv);
+    CameraRay cam = setupCamera(vUv);
+    float tZ = -cam.pos.z / cam.dir.z;
+    vec3 target = cam.pos + cam.dir * tZ;
+    float b = length(target.xy);
+
+    vec4 result;
+
+    if (uUseLUT > 0.5) {
+        // Smooth blend weight: 1.0 for RK4 at b < 2.8, 0.0 for LUT at b > 3.2
+        float rk4Weight = 1.0 - smoothstep(2.8, 3.2, b);
+
+        if (rk4Weight > 0.99) {
+            result = renderWithRK4(vUv);
+        } else if (rk4Weight < 0.01) {
+            result = renderWithLUT(vUv);
+        } else {
+            // Blend zone: both engines run, mix prevents visible seam
+            result = mix(renderWithLUT(vUv), renderWithRK4(vUv), rk4Weight);
+        }
+    } else {
+        result = renderWithRK4(vUv);
+    }
 
     vec3 accColor = result.rgb;
     float accAlpha = result.a;
 
-    // Photon ring
-    float screenDist = length(vUv - 0.5);
-    float photonR = 0.058 * uMass;
-    float ring = exp(-pow((screenDist - photonR) * 60.0, 2.0)) * 0.08 * uMass;
-    float ringGate = pow(clamp(1.0 - accAlpha, 0.0, 1.0), 2.0);
-    accColor += vec3(1.0, 0.95, 0.85) * ring * ringGate;
+    // ─── INNER CORONA (perspective-correct, b-based) ────────────────
+    // Fills the gap between the event horizon (b = B_CRITICAL ≈ 2.6)
+    // and the inner edge of the accretion disk (b ≈ DISK_INNER = 3.0)
+    // with a turbulent, fiery gas corona — the lensed photon ring.
+    //
+    // Uses the analytic impact parameter 'b' and ray angle 'theta'
+    // (both already computed for hybrid routing), NOT screen-space UV.
+    // This ensures the corona scales correctly with camera zoom/FOV
+    // and remains locked to the 3D black hole at all distances.
+    float theta = atan(target.y, target.x);
+
+    // Corona band: from just outside the shadow to the disk inner edge.
+    float coronaInner = B_CRITICAL;
+    float coronaOuter = B_CRITICAL + 0.6;
+    float coronaT = smoothstep(coronaInner, coronaOuter, b);
+
+    // Performance gate: only compute FBM within the corona band
+    if (coronaT > 0.001 && coronaT < 0.999) {
+        // Turbulent gas texture via FBM in polar (theta, b) coordinates.
+        // theta creates the filamentary angular structure,
+        // b creates radial depth variation. Both are world-space.
+        vec2 coronaPolar = vec2(theta * 3.0, b * 12.0);
+        float coronaTurb = fbm(coronaPolar + uTime * 0.3, 3);
+        float coronaDetail = fbm(coronaPolar * 2.5 - uTime * 0.2, 2);
+        float coronaPattern = coronaTurb * 0.7 + coronaDetail * 0.3;
+
+        // Radial intensity: brightest at the shadow edge, fading outward.
+        // pow(1-t, 2) mimics gravitational concentration of photons.
+        float radialFade = pow(1.0 - coronaT, 2.0);
+
+        // Temperature gradient: hottest (white-gold) at inner edge,
+        // cooling to deep red/orange at the outer boundary.
+        float coronaTemp = mix(0.9, 0.15, coronaT) * coronaPattern;
+        vec3 coronaColor = blackbody(clamp(coronaTemp, 0.0, 1.0));
+
+        float coronaIntensity = clamp(radialFade * coronaPattern * 1.8, 0.0, 1.0);
+
+        // Depth-correct compositing: corona represents gas lensing
+        // BEHIND the black hole. It must NOT render over the foreground
+        // disk. The (1 - accAlpha) gate ensures it only fills transparent
+        // regions of the scene (empty sky or thin disk edges).
+        float coronaGate = (1.0 - accAlpha);
+        accColor += coronaColor * coronaIntensity * coronaGate;
+        accAlpha = clamp(accAlpha + coronaIntensity * coronaGate * 0.6, 0.0, 1.0);
+    }
 
     float masterOpacity = smoothstep(0.35, 0.50, uScrollProgress);
-    float alpha = clamp(accAlpha + ring * ringGate, 0.0, 1.0) * masterOpacity;
+    float alpha = clamp(accAlpha, 0.0, 1.0) * masterOpacity;
 
     gl_FragColor = vec4(accColor, alpha);
 }
