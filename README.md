@@ -1,6 +1,6 @@
 # Event Horizon 🕳️
 
-![Event Horizon](public/black_hole.png)
+![Event Horizon](public/black_hole_v2.png)
 
 An immersive, cinematic, physically-based WebGL experience exploring the gravitational anomalies of a black hole.
 
@@ -11,8 +11,10 @@ An immersive, cinematic, physically-based WebGL experience exploring the gravita
 ## 🚀 Features
                   
 - **Physically-based Rendering**: Light rays are bent according to General Relativity, accurately simulating the gravitational lensing, the photon ring, and the event horizon.
+- **Dynamic Hybrid Spatial Renderer**: Smoothly blends real-time, high-precision RK4 ray-marching at the horizon boundary (where LUT bilinear interpolation is mathematically corrupted) with ultra-fast LUT lookups for the outer disk, maintaining a locked 60 FPS.
+- **Volumetric Gas Aesthetic**: Fluffy, dense accretion clouds driven by FBM noise with decoupled physical opacity, ensuring dimmed or redshifted gas correctly occludes stars and background layers.
+- **Fiery Inner Corona**: A perspective-correct, `b`-based lensed inner ring of filamentary gas swirling around the event horizon, correctly depth-sorted behind the foreground disk.
 - **WASM Geodesic Precomputation**: A high-performance Rust module calculates the ray paths and intersections offline. This heavy computation runs in a **Web Worker**, ensuring the UI remains 100% responsive.
-- **Real-Time GLSL Shader**: The fragment shader uses the precomputed LUT as a texture, turning an expensive 1500-step RK4 integration per pixel into a single `texture2D()` read, providing a **50-100x performance boost**.
 - **Cinematic Experience**: A smooth, 5-phase scrolling journey ("Nebula" to "Singularity"), featuring custom smooth-snap scrolling and an immersive auto-loop sequence upon entering the event horizon.
 - **Adaptive Post-Processing**: Dynamic bloom and chromatic aberration that scale with the gravitational intensity of your proximity to the black hole.
 
@@ -42,11 +44,14 @@ Our solution is a **Hybrid Pipeline**:
    - We output this data as a raw `256x256 RGBA Float32Array` buffer, which the main thread converts to half-floats (`Uint16Array` / `RGBA16F`) to enable high-performance, native WebGL 2 linear filtering on all GPU drivers.
 2. **Web Worker (Concurrency):**
    - To prevent the browser from freezing during this heavy calculation (~2-5 seconds), the WASM is loaded and executed inside a background Web Worker.
-3. **GLSL Fragment Shader (Real-Time Rendering):**
-   - The shader projects the camera ray onto a 2D plane to find the corresponding "impact parameter" (b) and camera angle (theta).
-   - It samples the WASM-generated LUT texture using smooth bilinear filtering.
-   - It reconstructs the seam-free crossing angle using `atan2(sin, cos)` and checks the Signed Distance Field (SDF) using screen-space derivatives (`fwidth`) to render pixel-perfect, anti-aliased accretion disk borders.
-   - If the Web Worker hasn't finished calculating yet, the shader seamlessly falls back to a lower-fidelity, real-time RK4 integration loop to keep the scene active and interactive.
+3. **GLSL Fragment Shader (Real-Time Hybrid Spatial Engine):**
+   - The shader projects the camera ray onto the accretion disk's plane to find the perspective-correct "impact parameter" (b) and camera angle (theta).
+   - **Dynamic Spatial Routing**: To eradicate "gray halo" artifacts caused by WebGL bilinear interpolation across the horizon's infinite mathematical discontinuity, the shader uses a spatial hybrid model. 
+   - For the core region (`b < 2.8`), it executes a mathematically flawless, hardware-optimized real-time RK4 integration loop.
+   - For the distant background disk (`b > 3.2`), it samples the WASM-generated LUT texture using smooth bilinear filtering.
+   - A smooth transition zone (`b ∈ [2.8, 3.2]`) blends the two pipelines seamlessly, completely eliminating visual seams while maintaining a locked 60 FPS performance.
+   - It splits the accretion disk into front and back layers using the lensed coordinates, compositing the front layer on top of the event horizon silhouette via standard alpha-over for a realistic Gargantua appearance.
+   - If the Web Worker hasn't finished calculating the LUT yet during initialization, the shader gracefully falls back to the full real-time RK4 integration loop across the entire screen.
 
 ---
 

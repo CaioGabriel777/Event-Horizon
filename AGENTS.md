@@ -10,9 +10,9 @@ Welcome, AI Agent! This document outlines the project architecture, directory st
 
 ---
 
-## 🏗️ Technical Architecture & Hybrid Pipeline
+## 🏗️ Technical Architecture & Hybrid Engine
 
-Event Horizon is an immersive, physically-based WebGL ray-marching simulation of a Schwarzschild black hole. To achieve 60fps in the browser, it uses a **Hybrid WASM + WebGL Pipeline**:
+Event Horizon is an immersive, physically-based WebGL ray-marching simulation of a Schwarzschild black hole. To achieve a locked 60 FPS in the browser with maximum physical fidelity, it uses a **Runtime Hybrid Spatial Engine (WASM + WebGL)**:
 
 ```mermaid
 graph TD
@@ -21,17 +21,26 @@ graph TD
     C -- Background Thread --> D[Precomputed Geodesic LUT Texture]
     D --> E[GLSL Fragment Shader]
     F[Camera/Impact Parameter] --> E
-    E --> G[60fps Real-Time Ray-Marching]
+    E --> H{Runtime Spatial Router}
+    H -- b < 2.8 --> I[High-Precision Real-Time RK4]
+    H -- b > 3.2 --> J[Ultra-Fast Bilinear LUT Lookup]
+    H -- 2.8 <= b <= 3.2 --> K[Smooth Linear Blend Zone]
+    I --> G[Depth-Correct Compositing & Volumetric Gas Rendering]
+    J --> G
+    K --> G
 ```
 
 1. **Rust / WASM (Offline / Initialization):**
-   - Calculates geodesic paths of photons under General Relativity using **Runge-Kutta 4th Order (RK4)** integration.
-   - Generates a **256x256 RGBA Float32Array Lookup Table (LUT)** DataTexture.
+   - Calculates geodesic paths of photons under General Relativity using high-precision **Runge-Kutta 4th Order (RK4)** integration.
+   - Generates a **256x256 RGBA Float32Array Lookup Table (LUT)** containing seam-free trigonometric crossing parameters `(cos(angle), sin(angle), radius, sdf)`.
 2. **Web Worker (Concurrency):**
-   - Executes the WASM calculations in a background Web Worker to keep the browser main UI thread 100% responsive.
-3. **GLSL Fragment Shader (Real-Time rendering):**
-   - Instead of running 1500-step integrations on the GPU, the fragment shader performs a quick `texture2D()` lookup of the precomputed LUT, transforming a heavy math equation into a fast texture sample (yielding a 50x-100x speedup).
-   - If the WASM calculation is in progress, the shader gracefully falls back to a low-fidelity, real-time ray-marching loop.
+   - Executes the heavy Rust WASM simulation in a background thread to prevent browser UI thread freezes.
+3. **GLSL Fragment Shader (Runtime Hybrid Spatial Engine):**
+   - **Dynamic Spatial Routing**: Direct bilinear texture lookups near the black hole silhouette (`b ≈ B_CRITICAL`) are corrupted by bilinear interpolation across the horizon's infinite discontinuity. To prevent gray halos, the shader routes pixels inside `b < 2.8` to run a flawless real-time, hardware-optimized RK4 integrator loop. Outer pixels (`b > 3.2`) sample the ultra-fast precomputed LUT. A transition zone (`b ∈ [2.8, 3.2]`) blends both seamlessly.
+   - **Volumetric Gas Aesthetics**: The accretion disk utilizes multi-octave FBM polar noise for gas cloud density patterns, with **decoupled physical opacity** (dimmed gas keeps a robust alpha to correctly occlude background stars/disk layers).
+   - **Fiery Inner Corona**: A post-process, perspective-correct filamentary gas ring is generated using the analytic impact parameter `b` and lensed ray angle `theta`, blending seamlessly behind the foreground disk via a strict `(1.0 - accAlpha)` depth gate.
+   - **Compositing**: Accretion disk elements are split into front/back layers via `diskSin`. The event horizon `captureMask` occludes ONLY the back layer, with the front layer alpha-compositing on top for the iconic "Gargantua" look.
+   - **Initial Fallback**: If the WASM LUT has not loaded yet, the entire screen falls back to the real-time RK4 engine.
 
 ---
 
@@ -41,7 +50,7 @@ graph TD
   - `src/lib.rs`: Entry point containing the WASM bindings (`wasm-bindgen`).
 - `public/wasm/`: The compiled WASM module output (produced by `wasm-pack`). Do not edit files here directly.
 - `src/app/`: Next.js (App Router) pages, layouts, and global styles.
-  - `favicon.ico`: High-quality 48x48 icon cropped from `black_hole.png`.
+  - `favicon.ico`: High-quality 48x48 icon cropped from `black_hole_v2.png`.
 - `src/components/`: React Three Fiber and UI components.
 - `src/shaders/`: GLSL shaders for WebGL ray-marching and post-processing.
 - `src/workers/`: Web Worker files responsible for spawning the WASM geodesic solver.
