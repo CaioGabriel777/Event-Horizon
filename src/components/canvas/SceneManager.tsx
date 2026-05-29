@@ -30,6 +30,7 @@ import { DiscoveryScene } from "./scenes/DiscoveryScene";
 import { ApproachScene } from "./scenes/ApproachScene";
 import { EventHorizonScene } from "./scenes/EventHorizonScene";
 import { SingularityScene } from "./scenes/SingularityScene";
+import { BlackHole } from "./objects/BlackHole";
 
 const BH_Z = -20;
 
@@ -112,6 +113,7 @@ export function SceneManager() {
 
   return (
     <group>
+      <BlackHole position={[0, 0, -20]} scale={22} />
       <NebulaScene active={nebulaActive} />
       <DiscoveryScene active={phase === "discovery" || phase === "approach" || phase === "revelation"} />
       <ApproachScene active={bhActive} />

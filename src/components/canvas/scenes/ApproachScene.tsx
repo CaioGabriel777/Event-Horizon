@@ -1,6 +1,6 @@
 /**
- * ApproachScene — Scene 3: "A SACADA PRINCIPAL"
- * =============================================
+ * ApproachScene — Scene 3: THE MAIN SHOWCASE
+ * ==========================================
  * The showcase scene where gravity takes hold.
  *
  * LAYOUT: Texts positioned on the LEFT side of the viewport,
@@ -13,7 +13,6 @@
 import { useRef } from "react";
 import { Group } from "three";
 import { useFrame } from "@react-three/fiber";
-import { BlackHole } from "../objects/BlackHole";
 import { GravityText } from "../objects/GravityText";
 
 import { useExperienceStore } from "@/store/useExperienceStore";
@@ -35,10 +34,6 @@ export function ApproachScene({ active }: ApproachSceneProps) {
 
   return (
     <group ref={groupRef}>
-      {/* ─── The Black Hole (center of attention) ────────────────── */}
-      <BlackHole position={[0, 0, -20]} scale={22} />
-
-
       {/* ─── Gravity-Distorted Text Elements ─────────────────────── */}
       {/* Positioned on the LEFT side, far from the black hole center */}
 
