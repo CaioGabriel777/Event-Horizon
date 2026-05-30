@@ -27,7 +27,7 @@ RUN wasm-pack build --target web --release --out-dir ../../public/wasm
 # ==============================================================================
 # STAGE 2: Base Node Environment (Shared Dependencies)
 # ==============================================================================
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 
 WORKDIR /app
 
@@ -42,28 +42,30 @@ RUN npm ci
 # ==============================================================================
 FROM base AS development
 
-# Copy the precompiled WebAssembly assets from the wasm-builder stage
-COPY --from=wasm-builder /app/public/wasm ./public/wasm
-
 # Copy the rest of the application files
 COPY . .
+
+# Copy the precompiled WebAssembly assets from the wasm-builder stage
+# This is done AFTER COPY . . to ensure the fresh built WASM overwrites any stale host files
+COPY --from=wasm-builder /app/public/wasm ./public/wasm
 
 ENV NODE_ENV=development
 EXPOSE 3000
 
-# Start Next.js in development mode
-CMD ["npm", "run", "dev"]
+# Start Next.js in development mode explicitly with Webpack (Turbopack has polling issues in Docker/WSL)
+CMD ["npx", "next", "dev", "--webpack"]
 
 # ==============================================================================
 # STAGE 4: Next.js Production Builder
 # ==============================================================================
 FROM base AS builder
 
-# Copy the precompiled WebAssembly assets from the wasm-builder stage
-COPY --from=wasm-builder /app/public/wasm ./public/wasm
-
 # Copy the rest of the application files
 COPY . .
+
+# Copy the precompiled WebAssembly assets from the wasm-builder stage
+# This is done AFTER COPY . . to ensure the fresh built WASM overwrites any stale host files
+COPY --from=wasm-builder /app/public/wasm ./public/wasm
 
 # Build the Next.js production bundle directly (bypassing prebuild script)
 RUN npx next build
@@ -71,7 +73,7 @@ RUN npx next build
 # ==============================================================================
 # STAGE 5: Production Runner (Minimal image, high security)
 # ==============================================================================
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 

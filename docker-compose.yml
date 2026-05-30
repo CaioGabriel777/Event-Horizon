@@ -11,6 +11,7 @@ services:
       - NODE_ENV=development
       # Ensures Webpack/Turbopack fast refresh (hot reload) works reliably inside Docker on Windows/WSL
       - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
     volumes:
       # Synchronize host workspace with the container for instant hot reload
       - .:/app
@@ -18,4 +19,6 @@ services:
       - /app/node_modules
       - /app/.next
       - /app/rust/geodesic-lut/target
+      # Preserve the WASM files built inside the container from being overshadowed by the host mount
+      - /app/public/wasm
     restart: unless-stopped
