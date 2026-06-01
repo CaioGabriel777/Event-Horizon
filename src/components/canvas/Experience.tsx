@@ -27,7 +27,7 @@ import { SceneManager } from "./SceneManager";
 import { StarField } from "./objects/StarField";
 import { useExperienceStore } from "@/store/useExperienceStore";
 import { CAMERA, SCROLL, SHADER, PERFORMANCE } from "@/lib/constants";
-import { clamp } from "@/lib/math";
+import { Stats } from "@react-three/drei";
 
 // ─── Adaptive Post-Processing Pipeline ──────────────────────────────────────
 
@@ -93,7 +93,12 @@ export function Experience() {
           position: CAMERA.initialPosition,
         }}
         performance={{ min: 0.5 }}
+        onCreated={({ gl, scene, camera }) => {
+          gl.compile(scene, camera);
+        }}
       >
+        {/* <Stats /> */}
+
         <color attach="background" args={["#030308"]} />
         <fog attach="fog" args={["#030308", 40, 150]} />
         <StarField />

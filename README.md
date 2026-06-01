@@ -1,6 +1,9 @@
 # Event Horizon 🕳️
 
-![Event Horizon](public/black_hole_v2.png)
+<p align="center">
+  <img src="public/nebula.png" height="280" alt="Volumetric Nebula" />
+  <img src="public/black_hole_v2.png" height="280" alt="Black Hole Event Horizon" />
+</p>
 
 An immersive, cinematic, physically-based WebGL experience exploring the gravitational anomalies of a black hole.
 
@@ -10,8 +13,10 @@ An immersive, cinematic, physically-based WebGL experience exploring the gravita
 
 ## 🚀 Features
                   
+
 - **Physically-based Rendering**: Light rays are bent according to General Relativity, accurately simulating the gravitational lensing, the photon ring, and the event horizon.
 - **Dynamic Hybrid Spatial Renderer**: Smoothly blends real-time, high-precision RK4 ray-marching at the horizon boundary (where LUT bilinear interpolation is mathematically corrupted) with ultra-fast LUT lookups for the outer disk, maintaining a locked 60 FPS.
+- **Texture-Based Volumetric Nebula**: The introductory cosmic dust cloud utilizes heavily optimized instanced billboarding mapped with a pre-rendered smoke texture. We use procedural UV warping and a "Zero-Accumulation" fragment architecture to simulate thick, organic fluid turbulence while strictly preventing additive blending from crushing into solid walls of light.
 - **Volumetric Gas Aesthetic**: Fluffy, dense accretion clouds driven by FBM noise with decoupled physical opacity, ensuring dimmed or redshifted gas correctly occludes stars and background layers.
 - **Fiery Inner Corona**: A perspective-correct, `b`-based lensed inner ring of filamentary gas swirling around the event horizon, correctly depth-sorted behind the foreground disk.
 - **WASM Geodesic Precomputation**: A high-performance Rust module calculates the ray paths and intersections offline. This heavy computation runs in a **Web Worker**, ensuring the UI remains 100% responsive.

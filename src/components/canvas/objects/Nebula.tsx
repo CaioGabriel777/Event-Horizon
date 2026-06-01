@@ -1,19 +1,16 @@
 /**
- * Nebula — Optimized Volumetric Particle Cloud
- * =============================================
- * Creates a dense nebula using 600 instanced billboard particles.
- * Optimized for 60 FPS:
- * - 600 instances (single draw call)
- * - PlaneGeometry billboards (4 vertices each)
- * - Lightweight gradient noise in fragment shader (2-octave FBM)
- * - Additive blending for luminous gas
- * - frustumCulled=false (particles always render, cheap to discard in shader)
+ * Nebula — Texture-Based Volumetric Particle Cloud
+ * ============================================================================
+ * Optimized for maximum fill-rate performance using a pre-rendered 
+ * smoke texture instead of expensive procedural fragment noise.
  */
 
 "use client";
 
 import { useRef, useMemo, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
+import { useScroll, useTexture } from "@react-three/drei";
+import { MathUtils } from "three";
 import {
   InstancedMesh,
   Matrix4,
@@ -23,17 +20,16 @@ import {
   AdditiveBlending,
   DoubleSide,
 } from "three";
-import { useExperienceStore } from "@/store/useExperienceStore";
 
 import vertexShader from "@/shaders/nebula/vertex.glsl";
 import fragmentShader from "@/shaders/nebula/fragment.glsl";
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 
-const PARTICLE_COUNT = 800;
-const CLOUD_CENTER_Z = 10; // Pushed far back. Camera is at Z=50. Distance = 40 units.
+const PARTICLE_COUNT = 50;
+const CLOUD_CENTER_Z = 10;
 
-// ─── Particle Distribution ─────────────────────────────────────────────────
+// ─── Particle Distribution ──────────────────────────────────────────────────
 
 function generateParticles(count: number) {
   const matrices: Matrix4[] = [];
@@ -43,54 +39,41 @@ function generateParticles(count: number) {
 
   for (let i = 0; i < count; i++) {
     let type = Math.random();
-    
-    // ─── Dust Lanes & Voids ───────────────────────────────────────────────
-    // We intentionally cluster particles and leave dark gaps
-    let x = (Math.random() - 0.5) * 40;
-    let y = (Math.random() - 0.5) * 30;
-    let z = CLOUD_CENTER_Z + (Math.random() - 0.5) * 20;
+    const isCore = type < 0.4;
 
-    // Simulate "Dust Lanes" - if the particle falls in a certain sine-wave grid, 
-    // we either push it out or make it very faint.
-    let isDustLane = Math.sin(x * 0.15) * Math.cos(y * 0.15) > 0.4;
-    
-    if (isDustLane && Math.random() > 0.2) {
-      // Push particle to the edges of the dust lane
-      x += (Math.random() > 0.5 ? 5 : -5);
-      y += (Math.random() > 0.5 ? 5 : -5);
-    }
+    // ─── Core Centralization (Circular Distribution) ────────────────────────
+    const radiusBias = isCore ? 2.0 : 1.2;
+    const radius = Math.pow(Math.random(), radiusBias) * (isCore ? 18 : 35);
+    const angle = Math.random() * Math.PI * 2;
+
+    let x = Math.cos(angle) * radius;
+    let y = Math.sin(angle) * radius;
+    let z = CLOUD_CENTER_Z + (Math.random() - 0.5) * (isCore ? 15 : 30);
+
+    let isDustLane = Math.sin(x * 0.15) * Math.cos(y * 0.15) > 0.4 && !isCore;
 
     pos.set(x, y, z);
 
-    // ─── Massive Cumuliform Volume ────────────────────────────────────────
-    const isCore = type < 0.3 && !isDustLane;
-    
-    // Uniform, massive scale to guarantee AdditiveBlending overlap.
-    // Core areas get giant puffs, outer areas get medium puffs.
-    const scale = isCore ? 45 + Math.random() * 25 : 30 + Math.random() * 20;
+    // ─── Colossal Scale ─────────────────────────────────────────────────────
+    const scale = isCore ? 80 + Math.random() * 50 : 50 + Math.random() * 40;
 
     mat.makeTranslation(pos.x, pos.y, pos.z);
     mat.multiply(new Matrix4().makeRotationZ(Math.random() * Math.PI));
-    mat.scale(new Vector3(scale, scale, 1.0)); // Square billboard
+    mat.scale(new Vector3(scale, scale, 1.0));
     matrices.push(mat.clone());
 
-    // ─── Chemical Colors (Oxygen Blue vs Hydrogen Pink) ──────────────────
+    // ─── Colors & Density ───────────────────────────────────────────────────
     colors[i * 3] = Math.random();
-    
-    // Density is lower in dust lanes to ensure they stay dark
-    const baseDensity = isCore ? 0.3 + Math.random() * 0.2 : 0.1 + Math.random() * 0.15;
+
+    const baseDensity = isCore ? 0.5 + Math.random() * 0.3 : 0.2 + Math.random() * 0.2;
     colors[i * 3 + 1] = isDustLane ? baseDensity * 0.1 : baseDensity;
-    
-    // 40% chance of Oxygen (Cyan), 60% Hydrogen (Pink)
-    colors[i * 3 + 2] = Math.random() > 0.6 ? 0.8 : 0.2; 
+    colors[i * 3 + 2] = Math.random() > 0.6 ? 0.8 : 0.2;
   }
 
   return { matrices, colors };
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
-
-import { useScroll } from "@react-three/drei";
 
 export function Nebula() {
   const meshRef = useRef<InstancedMesh>(null!);
@@ -99,15 +82,18 @@ export function Nebula() {
 
   const scroll = useScroll();
 
+  // Load the texture from the public folder
+  const smokeTexture = useTexture("/smoke.png");
+
   const { matrices, colors } = useMemo(() => generateParticles(PARTICLE_COUNT), []);
 
   const uniforms = useMemo(() => ({
     uTime: { value: 0 },
     uProgress: { value: 0 },
-    uScroll: { value: 0 }, // Added uScroll uniform
-  }), []);
+    uScroll: { value: 0 },
+    uTexture: { value: smokeTexture }, // Passing texture to shader
+  }), [smokeTexture]);
 
-  // Initialize instance matrices and colors once after mount
   useEffect(() => {
     if (!meshRef.current || initialized.current) return;
 
@@ -124,19 +110,23 @@ export function Nebula() {
     initialized.current = true;
   }, [matrices, colors]);
 
-  // Animate uniforms every frame
   useFrame((state) => {
     if (!materialRef.current) return;
 
     materialRef.current.uniforms.uTime.value = state.clock.elapsedTime;
-    
-    const scrollProgress = scroll.offset;
-    materialRef.current.uniforms.uScroll.value = scrollProgress; // Pass scroll directly
 
-    // Dissolve starts at 0.40 (revelation) and completes by 0.60
+    const targetScroll = scroll.offset;
+    materialRef.current.uniforms.uScroll.value = MathUtils.lerp(
+      materialRef.current.uniforms.uScroll.value,
+      targetScroll,
+      0.05
+    );
+
+    const smoothScroll = materialRef.current.uniforms.uScroll.value;
+
     let progress = 0;
-    if (scrollProgress > 0.4) {
-      progress = Math.min(1, (scrollProgress - 0.4) / 0.2);
+    if (smoothScroll > 0.4) {
+      progress = Math.min(1, (smoothScroll - 0.4) / 0.2);
     }
     materialRef.current.uniforms.uProgress.value = progress;
   });

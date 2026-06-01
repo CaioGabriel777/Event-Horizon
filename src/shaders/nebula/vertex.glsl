@@ -1,90 +1,101 @@
 /**
  * Nebula — Vertex Shader
- * ==================================================
- * Restores massive billboard scale for thick cumuliform gas,
- * maintains Dust Lanes via 2D Noise, Organic Drift, 
- * and Native Z-Axis Traversal.
+ * ============================================================================
+ * Implements organic Perlin Noise for procedural density and coloration.
+ * This runs per-instance (50 times total), maintaining extremely high performance.
  */
+
+// ─── Attributes & Varyings ──────────────────────────────────────────────────
 
 attribute vec3 instanceColor;
 
 varying vec2 vUv;
-varying vec3 vInstancePos;
-varying float vSeed;
 varying float vDensity;
-varying float vColorVar;
 varying float vDustMask; 
+varying vec3 vBaseColor; 
+
+// ─── Uniforms ───────────────────────────────────────────────────────────────
 
 uniform float uTime;
 uniform float uScroll;
 
-// ─── Fast 2D Value Noise for Dust Lanes ──────────────────────────────────────
+// ─── Noise ──────────────────────────────────────────────────────────────────
 
-float hash(vec2 p) {
-    p = fract(p * vec2(234.34, 435.345));
-    p += dot(p, p + 34.23);
-    return fract(p.x * p.y);
+vec2 hash2(vec2 p) {
+    p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+    return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
 }
 
-float valueNoise(vec2 p) {
+float perlinNoise(vec2 p) {
     vec2 i = floor(p);
     vec2 f = fract(p);
     vec2 u = f * f * (3.0 - 2.0 * f);
-    return mix(
-        mix(hash(i + vec2(0.0,0.0)), hash(i + vec2(1.0,0.0)), u.x),
-        mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), u.x), 
-        u.y
+    float n = mix(
+        mix(dot(hash2(i + vec2(0.0, 0.0)), f - vec2(0.0, 0.0)),
+            dot(hash2(i + vec2(1.0, 0.0)), f - vec2(1.0, 0.0)), u.x),
+        mix(dot(hash2(i + vec2(0.0, 1.0)), f - vec2(0.0, 1.0)),
+            dot(hash2(i + vec2(1.0, 1.0)), f - vec2(1.0, 1.0)), u.x), u.y
     );
+    return n * 0.5 + 0.5; 
 }
 
-void main() {
-    vSeed = instanceColor.r;
-    vDensity = instanceColor.g;
-    vColorVar = instanceColor.b;
+// ─── Main ───────────────────────────────────────────────────────────────────
 
+void main() {
+    float vSeed = instanceColor.r;
+    vDensity = instanceColor.g;
+    float vColorVar = instanceColor.b;
+
+    // ─── Instance Position & Dust Mask ──────────────────────────────────────
+    
     vec3 instancePos = vec3(
         instanceMatrix[3][0],
         instanceMatrix[3][1],
         instanceMatrix[3][2]
     );
 
-    // ─── Dust Lanes (Procedural Void Generation) ─────────────────
-    // We use a macro-scale 2D noise based on the instance position
-    // to determine if this particle sits inside a "Dust Lane".
-    float dustNoise = valueNoise(instancePos.xy * 0.05);
+    float dustNoise = perlinNoise(instancePos.xy * 0.05);
     vDustMask = smoothstep(0.3, 0.6, dustNoise); 
 
-    // ─── Billboard Rotation ──────────────────────────────────────
-    float rotT = uTime * 0.1 * (vSeed - 0.5) * 2.0; 
+    // ─── Color Palette (Cyan / Magenta) ─────────────────────────────────────
+    
+    float isOxygen = smoothstep(0.4, 0.6, vColorVar);
+    float spaceNoise = perlinNoise(instancePos.xy * 0.05 + vec2(uTime * 0.01));
+    
+    vec3 deepVoid = vec3(0.05, 0.01, 0.10);       
+    vec3 oxygenCyan = vec3(0.10, 0.60, 0.95);     
+    vec3 hydrogenPink = vec3(0.90, 0.10, 0.50);   
+
+    vec3 chemicalColor = mix(hydrogenPink, oxygenCyan, isOxygen);
+    vBaseColor = mix(deepVoid, chemicalColor, 0.3 + 0.7 * spaceNoise);
+
+    // ─── Quad Rotation & Drift ──────────────────────────────────────────────
+    
+    float rotT = uTime * 0.05 * (vSeed - 0.5) * 2.0; 
     float initialRot = vSeed * 6.28318; 
     float angle = initialRot + rotT;
     
     float s = sin(angle);
     float c = cos(angle);
     
-    // We removed the severe XY squashing so the Fragment Shader has
-    // a full square canvas to generate thick cumuliform clouds.
     vec2 rotatedPos = vec2(
         position.x * c - position.y * s,
         position.x * s + position.y * c
     );
 
-    // If it's a dust lane, we shrink the particle slightly to physically tear the gas
     rotatedPos *= (0.4 + 0.6 * vDustMask);
 
     vUv = uv;
-    vInstancePos = instancePos;
     
-    // Organic Drift
     vec3 drift = vec3(
-        sin(uTime * 0.15 + vSeed * 10.0) * 3.0,
-        cos(uTime * 0.12 - vSeed * 5.0) * 2.0,
-        sin(uTime * 0.08 + vSeed * 20.0) * 1.5
+        sin(uTime * 0.1 + vSeed * 10.0) * 2.0,
+        cos(uTime * 0.08 - vSeed * 5.0) * 1.5,
+        sin(uTime * 0.05 + vSeed * 20.0) * 1.0
     );
     instancePos += drift;
-
-    // Native Traversal
     instancePos.z += uScroll * 80.0;
+
+    // ─── Camera-Facing Billboarding ─────────────────────────────────────────
 
     float scaleX = length(vec3(instanceMatrix[0])); 
 
