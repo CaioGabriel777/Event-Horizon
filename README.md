@@ -1,8 +1,8 @@
 # Event Horizon 🕳️
 
 <p align="center">
-  <img src="public/nebula.png" height="280" alt="Volumetric Nebula" />
   <img src="public/black_hole_v2.png" height="280" alt="Black Hole Event Horizon" />
+  <img src="public/nebula.png" height="280" alt="Volumetric Nebula" />
 </p>
 
 An immersive, cinematic, physically-based WebGL experience exploring the gravitational anomalies of a black hole.
