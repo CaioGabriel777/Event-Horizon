@@ -28,6 +28,7 @@ import { StarField } from "./objects/StarField";
 import { useExperienceStore } from "@/store/useExperienceStore";
 import { CAMERA, SCROLL, SHADER, PERFORMANCE } from "@/lib/constants";
 import { Stats } from "@react-three/drei";
+import { HelmetHUD } from "../ui/HelmetHUD";
 
 // ─── Adaptive Post-Processing Pipeline ──────────────────────────────────────
 
@@ -77,6 +78,9 @@ function LoadingFallback() {
 export function Experience() {
   return (
     <div className="fixed inset-0 w-full h-full" id="experience-canvas">
+
+      <HelmetHUD />
+
       <Canvas
         dpr={PERFORMANCE.dprRange}
         gl={{
