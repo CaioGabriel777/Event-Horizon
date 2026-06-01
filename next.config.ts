@@ -24,7 +24,14 @@ const nextConfig: NextConfig = {
   },
 
   // Webpack fallback for production builds if needed
-  webpack: (config) => {
+  webpack: (config, { dev }) => {
+    if (dev) {
+      config.watchOptions = {
+        poll: 1000,
+        aggregateTimeout: 300,
+      };
+    }
+
     config.module.rules.push({
       test: /\.(glsl|vert|frag)$/,
       use: "raw-loader",
