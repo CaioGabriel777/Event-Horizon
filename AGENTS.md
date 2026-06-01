@@ -42,6 +42,12 @@ graph TD
    - **Compositing**: Accretion disk elements are split into front/back layers via `diskSin`. The event horizon `captureMask` occludes ONLY the back layer, with the front layer alpha-compositing on top for the iconic "Gargantua" look.
    - **Initial Fallback**: If the WASM LUT has not loaded yet, the entire screen falls back to the real-time RK4 engine.
 
+### 🌌 Volumetric Nebula Engine (Introduction Phase)
+
+- **Texture-Based Instancing**: To maintain a locked 60 FPS while rendering massive cosmic dust, the Nebula phase utilizes instanced billboarding (50 quads) mapped with a pre-rendered smoke texture instead of expensive purely procedural fragment noise.
+- **Organic UV Warping**: The fragment shader distorts the static texture coordinates using time and density-based sines/cosines to create organic fluid behavior, seamlessly merging the 50 instances into a single, cohesive gas cloud.
+- **Zero-Accumulation Architecture**: To prevent the classic "plastic wall" artifact caused by intense additive blending, the shader sculpts the smoke using a parabolic luminance curve. Thin smoke outputs `vec3(0.0)` (pure black) instead of low-alpha gray, ensuring that accumulating 50 transparent planes does not blow out into a solid white wall.
+
 ---
 
 ## 📂 Repository Structure & Key Directories
