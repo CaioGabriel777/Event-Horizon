@@ -82,6 +82,16 @@ export function CinematicSplash() {
               </motion.div>
             ))}
           </div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.5 }}
+            transition={{ delay: 1, duration: 2 }}
+            className="absolute bottom-12 left-0 right-0 text-center font-mono text-xs text-cyan-300 tracking-[0.2em]"
+            style={{ textShadow: "0 0 8px rgba(34, 211, 238, 0.4)" }}
+          >
+            RECOMMENDED EXPERIENCE: DESKTOP / PC
+          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>

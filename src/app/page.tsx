@@ -38,14 +38,6 @@ const SceneOverlay = dynamic(
   { ssr: false }
 );
 
-const HUD = dynamic(
-  () =>
-    import("@/components/ui/HUD").then((mod) => ({
-      default: mod.HUD,
-    })),
-  { ssr: false }
-);
-
 export default function Home() {
   return (
     <main className="relative w-full h-screen overflow-hidden" id="landing-page">
@@ -58,7 +50,6 @@ export default function Home() {
       {/* DOM Overlay Layer */}
       <Navigation />
       <SceneOverlay />
-      <HUD />
     </main>
   );
 }

@@ -36,6 +36,7 @@ export const useExperienceStore = create<ExperienceState>()(
     qualityTier: "high",
     isTransitioning: false,
     isReady: false,
+    isHelmetOn: true,
 
     setScrollProgress: (v: number) => {
       const progress = clamp(v, 0, 1);
@@ -70,6 +71,12 @@ export const useExperienceStore = create<ExperienceState>()(
 
     setReady: () => {
       set({ isReady: true });
+    },
+
+    setIsHelmetOn: (v) => {
+      set((state) => ({
+        isHelmetOn: typeof v === "function" ? v(state.isHelmetOn) : v,
+      }));
     },
   }))
 );
