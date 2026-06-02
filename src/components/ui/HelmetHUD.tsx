@@ -176,6 +176,34 @@ export function HelmetHUD() {
           className="hidden md:block"
           style={{ position: "fixed", inset: 0, zIndex: 40, overflow: "hidden", pointerEvents: "none" }}
         >
+          {/* ─── Diegetic CSS Keyframes ─────────────────────────────────── */}
+          <style>{`
+            @keyframes condense {
+              0%, 100% { opacity: 0.015; }
+              50% { opacity: 0.03; }
+            }
+            @keyframes scanMove {
+              0% { transform: translateY(-100%); }
+              100% { transform: translateY(100vh); }
+            }
+            @keyframes glow {
+              0%, 100% { opacity: 1; box-shadow: 0 0 10px ${C_BRIGHT}; }
+              50% { opacity: 0.5; box-shadow: 0 0 4px ${C_BRIGHT}88; }
+            }
+            @keyframes dangerPulseFast {
+              0%, 100% { opacity: 1; box-shadow: 0 0 15px ${DANGER}; background: ${DANGER}; }
+              50% { opacity: 0.3; box-shadow: 0 0 5px ${DANGER}44; background: ${DANGER}88; }
+            }
+          `}</style>
+
+          {/* ─── Aggressive Danger State ─────────────────────────────── */}
+          <div style={{
+            position: "absolute", inset: 0, zIndex: 35, pointerEvents: "none",
+            background: "radial-gradient(ellipse at center, transparent 40%, rgba(200,30,30,0.08) 100%)",
+            opacity: isDanger ? 1 : 0,
+            transition: "opacity 0.5s ease"
+          }} />
+
           {/* ─── Layer 1: Physical Helmet Shell (SVG) ────────────────────── */}
           <svg
             className="absolute inset-0 w-full h-full pointer-events-none"
@@ -184,13 +212,10 @@ export function HelmetHUD() {
             preserveAspectRatio="none"
           >
             <defs>
-              {/* Visor cutout — wide rounded rectangle, thin frame */}
               <mask id="visor-cutout">
                 <rect width="1920" height="1080" fill="white" />
                 <rect x="50" y="35" width="1820" height="1010" rx="260" ry="200" fill="black" />
               </mask>
-
-              {/* Polymer texture filter */}
               <filter id="polymer-texture">
                 <feTurbulence type="fractalNoise" baseFrequency="0.6" numOctaves="5" result="noise" />
                 <feComponentTransfer in="noise" result="faintNoise">
@@ -198,6 +223,9 @@ export function HelmetHUD() {
                 </feComponentTransfer>
                 <feComposite operator="in" in="faintNoise" in2="SourceGraphic" result="composite" />
                 <feBlend mode="multiply" in="composite" in2="SourceGraphic" />
+              </filter>
+              <filter id="glass-noise">
+                <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch"/>
               </filter>
             </defs>
 
@@ -210,20 +238,68 @@ export function HelmetHUD() {
             <rect x="50" y="35" width="1820" height="1010" rx="260" ry="200" fill="none" stroke="#1e2030" strokeWidth="3" />
             {/* Chamfer highlight */}
             <rect x="52" y="37" width="1816" height="1006" rx="258" ry="198" fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+            
+            {/* Physical visor reflection */}
+            <path d="M 400 60 Q 960 120 1520 60" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="1.5" />
+            
+            {/* 4 corner screws/rivets */}
+            <circle cx="100" cy="85" r="4" fill="#12151f" stroke="#1e2235" strokeWidth="1" />
+            <circle cx="1820" cy="85" r="4" fill="#12151f" stroke="#1e2235" strokeWidth="1" />
+            <circle cx="100" cy="995" r="4" fill="#12151f" stroke="#1e2235" strokeWidth="1" />
+            <circle cx="1820" cy="995" r="4" fill="#12151f" stroke="#1e2235" strokeWidth="1" />
           </svg>
 
-          {/* ─── Layer 1.1: Inner Visor Vignette ─────────────────────────── */}
+          {/* ─── Layer 1.1: Layered Vignette ─────────────────────────── */}
           <div
             style={{
               position: "absolute", inset: 0, zIndex: 55, pointerEvents: "none",
-              boxShadow: "inset 0 0 150px 60px rgba(0,0,0,0.8), inset 0 0 300px 100px rgba(0,0,0,0.4)",
+              boxShadow: "inset 0 0 80px 30px rgba(0,0,0,0.9), inset 0 0 200px 80px rgba(0,0,0,0.6), inset 0 -60px 120px 20px rgba(0,0,0,0.5), inset 0 60px 120px 20px rgba(0,0,0,0.4)",
             }}
           />
 
-          {/* ─── Layer 1.2: Anti-Glare Scanlines ─────────────────────────── */}
+          {/* ─── Layer 1.2: Glass Reflections (Top & Bottom) ─────────── */}
+          <div style={{
+            position: "absolute", top: 35, left: 50, right: 50, height: "40%", zIndex: 56, pointerEvents: "none",
+            background: "linear-gradient(180deg, rgba(255,255,255,0.045) 0%, transparent 100%)",
+            borderRadius: "220px 220px 0 0",
+            clipPath: "ellipse(49% 100% at 50% 0%)"
+          }} />
+          <div style={{
+            position: "absolute", bottom: 35, left: 50, right: 50, height: "30%", zIndex: 56, pointerEvents: "none",
+            background: "linear-gradient(0deg, rgba(0,0,20,0.4) 0%, transparent 100%)",
+            borderRadius: "0 0 180px 180px"
+          }} />
+
+          {/* ─── Layer 1.3: Chromatic Aberrations ────────────────────── */}
+          <div style={{
+            position: "absolute", top: 35, bottom: 35, left: 50, width: 80, zIndex: 56, pointerEvents: "none",
+            background: "linear-gradient(90deg, rgba(255,0,60,0.04), rgba(0,80,255,0.04), transparent)",
+            borderRadius: "260px 0 0 200px"
+          }} />
+          <div style={{
+            position: "absolute", top: 35, bottom: 35, right: 50, width: 80, zIndex: 56, pointerEvents: "none",
+            background: "linear-gradient(-90deg, rgba(255,0,60,0.04), rgba(0,80,255,0.04), transparent)",
+            borderRadius: "0 260px 200px 0"
+          }} />
+
+          {/* ─── Layer 1.4: Glass Condensation & Scan Beam ───────────── */}
+          <div style={{
+            position: "absolute", inset: 0, zIndex: 57, pointerEvents: "none",
+            animation: "condense 6s ease-in-out infinite",
+          }}>
+             <div style={{ width: "100%", height: "100%", filter: "url(#glass-noise)", opacity: 0.8 }} />
+          </div>
+
+          <div style={{
+            position: "absolute", top: 0, left: 0, right: 0, height: 2, zIndex: 58, pointerEvents: "none",
+            background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)",
+            animation: "scanMove 8s linear infinite",
+          }} />
+
+          {/* ─── Layer 1.5: Anti-Glare Scanlines ─────────────────────── */}
           <div
             style={{
-              position: "absolute", inset: 0, zIndex: 56, pointerEvents: "none", opacity: 0.025,
+              position: "absolute", inset: 0, zIndex: 59, pointerEvents: "none", opacity: 0.025,
               backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.12) 2px, rgba(255,255,255,0.12) 4px)",
             }}
           />
@@ -249,15 +325,22 @@ export function HelmetHUD() {
                 ? "0 0 20px rgba(239,68,68,0.1), inset 0 0 10px rgba(0,0,0,0.6)"
                 : "0 0 20px rgba(0,0,0,0.3), inset 0 0 10px rgba(0,0,0,0.6)",
             }}>
-              {/* Panel header */}
-              <div style={{
-                fontSize: 10, color: isDanger ? DANGER : C_BRIGHT, letterSpacing: "0.25em",
-                borderBottom: `1px solid ${isDanger ? "rgba(239,68,68,0.3)" : C_DIM}`,
-                paddingBottom: 6, marginBottom: 14,
-                textShadow: isDanger ? "0 0 4px rgba(239,68,68,0.4)" : `0 0 4px ${C_BRIGHT}44`,
-              }}>
-                {isDanger ? "⚠ WARNING" : "TELEMETRY"}
+              {/* Panel header & Signal */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 10 }}>
+                <div style={{
+                  fontSize: 10, color: isDanger ? DANGER : C_BRIGHT, letterSpacing: "0.25em",
+                  textShadow: isDanger ? `0 0 4px ${DANGER}88` : `0 0 4px ${C_BRIGHT}44`,
+                }}>
+                  {isDanger ? "⚠ WARNING" : "TELEMETRY"}
+                </div>
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 14 }}>
+                  {[1, 2, 3, 4].map((bar) => {
+                     const isOn = gravity < (1.0 - (bar * 0.2));
+                     return <div key={bar} style={{ width: 6, height: 4 + bar * 3, background: isOn ? (isDanger ? DANGER : OK) : "rgba(255,255,255,0.15)", borderRadius: 1 }} />
+                  })}
+                </div>
               </div>
+              <div style={{ borderBottom: `1px solid ${isDanger ? "rgba(239,68,68,0.3)" : C_DIM}`, marginBottom: 14 }} />
 
               {/* FPS */}
               <div style={{ marginBottom: 12 }}>
@@ -265,9 +348,12 @@ export function HelmetHUD() {
                 <div style={{
                   fontSize: 18, fontWeight: "bold", letterSpacing: "0.1em",
                   color: fps >= 50 ? OK : fps >= 30 ? WARN : DANGER,
-                  textShadow: `0 0 4px ${fps >= 50 ? "rgba(74,222,128,0.3)" : fps >= 30 ? "rgba(251,146,60,0.3)" : "rgba(239,68,68,0.3)"}`,
+                  textShadow: `0 0 4px ${fps >= 50 ? "rgba(74,222,128,0.3)" : fps >= 30 ? "rgba(255,175,56,0.3)" : "rgba(255,107,107,0.3)"}`,
                 }}>
                   {fps}
+                </div>
+                <div style={{ height: 2, borderRadius: 1, marginTop: 4, width: "100%", background: "rgba(255,255,255,0.1)", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${Math.min(100, (fps / 60) * 100)}%`, background: fps >= 50 ? OK : fps >= 30 ? WARN : DANGER }} />
                 </div>
               </div>
 
@@ -281,18 +367,26 @@ export function HelmetHUD() {
                 }}>
                   {gravityDisplay}
                 </div>
+                <div style={{ height: 2, borderRadius: 1, marginTop: 4, width: "100%", background: "rgba(255,255,255,0.1)", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${Math.min(100, gravity * 100)}%`, background: gravityColor }} />
+                </div>
               </div>
 
               {/* INTEGRITY */}
               <div>
-                <div style={{ fontSize: 9, color: C_LABEL, letterSpacing: "0.15em", marginBottom: 3 }}>INTEGRITY</div>
+                <div style={{ fontSize: 9, color: C_LABEL, letterSpacing: "0.15em", marginBottom: 3 }}>
+                  INTEGRITY
+                  <span style={{ float: "right", opacity: 0.6 }}>{integrityLabel}</span>
+                </div>
                 <div style={{
                   fontSize: 18, fontWeight: "bold", letterSpacing: "0.1em",
                   color: integrityColor,
                   textShadow: `0 0 4px ${integrityColor}44`,
                 }}>
                   {integrityValue}%
-                  <span style={{ fontSize: 9, marginLeft: 6, opacity: 0.7 }}>[{integrityLabel}]</span>
+                </div>
+                <div style={{ height: 2, borderRadius: 1, marginTop: 4, width: "100%", background: "rgba(255,255,255,0.1)", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${integrityValue}%`, background: integrityColor }} />
                 </div>
               </div>
             </div>
@@ -319,7 +413,7 @@ export function HelmetHUD() {
               <div style={{
                 width: 8, height: 8, borderRadius: "50%",
                 background: isDanger ? DANGER : C_BRIGHT,
-                boxShadow: `0 0 10px ${isDanger ? DANGER : C_BRIGHT}`,
+                animation: isDanger ? "dangerPulseFast 0.8s infinite" : "glow 2s ease-in-out infinite",
               }} />
               <div style={{
                 fontSize: 12, color: isDanger ? DANGER : C_BRIGHT, letterSpacing: "0.2em",
