@@ -409,7 +409,7 @@ void main() {
         accAlpha = clamp(accAlpha + coronaIntensity * coronaGate * 0.6, 0.0, 1.0);
     }
 
-    float masterOpacity = smoothstep(0.35, 0.50, uScrollProgress);
+    float masterOpacity = smoothstep(0.25, 0.38, uScrollProgress);
     float alpha = clamp(accAlpha, 0.0, 1.0) * masterOpacity;
 
     gl_FragColor = vec4(accColor, alpha);
