@@ -2,19 +2,20 @@
  * HelmetHUD — Immersive Astronaut Visor Overlay
  * ============================================================================
  * Diegetic UI simulating a physical helmet visor with:
- *   - SVG visor cutout (wide rounded rectangle, minimal frame)
- *   - Polymer noise texture on the helmet shell
- *   - Heavy inner vignette for curved glass depth illusion
- *   - Single left telemetry panel with reactive data (FPS, Gravity, Integrity)
- *   - Danger state triggered at singularity phase
+ *   - Hexagonal SVG shell via HelmetShellSVG (CSS variable theming)
+ *   - Layered vignette, glass reflections, chromatic aberrations
+ *   - Interior foam padding, seams, and technical material textures
+ *   - Left telemetry panel with 3D perspective curvature
+ *   - Phase-reactive variant system (nominal / warning / danger)
  */
 
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useExperienceStore } from "@/store/useExperienceStore";
 import { PHASES } from "@/lib/constants";
+import { HelmetShellSVG } from "./HelmetShellSVG";
 
 // ─── Design Tokens ──────────────────────────────────────────────────────────
 
@@ -27,6 +28,17 @@ const DANGER = "#ff6b6b";
 const PANEL_BG = "rgba(2,8,20,0.5)";
 const BORDER = "rgba(255, 255, 255, 0.15)";
 const MONO = "'Courier New','Lucida Console',monospace";
+
+const TECHNICAL_NOISE = `data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E`;
+
+/** Maps experience phase to shell visual variant */
+function useShellVariant(phase: string, isSingularity: boolean) {
+  return useMemo(() => {
+    if (isSingularity) return "danger" as const;
+    if (phase === "approach" || phase === "event-horizon") return "warning" as const;
+    return "nominal" as const;
+  }, [phase, isSingularity]);
+}
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
@@ -52,6 +64,7 @@ export function HelmetHUD() {
   const isSingularity = phase === "singularity";
   const isEventHorizon = phase === "event-horizon";
   const isDanger = isSingularity || isEventHorizon;
+  const shellVariant = useShellVariant(phase, isSingularity);
 
   // Phase Information
   const hudPhases = PHASES.slice(2); // Skip home and awakening for HUD count
@@ -205,48 +218,15 @@ export function HelmetHUD() {
           }} />
 
           {/* ─── Layer 1: Physical Helmet Shell (SVG) ────────────────────── */}
-          <svg
-            className="absolute inset-0 w-full h-full pointer-events-none"
-            style={{ zIndex: 60 }}
-            viewBox="0 0 1920 1080"
-            preserveAspectRatio="none"
-          >
+          <HelmetShellSVG variant={shellVariant} />
+
+          {/* Hidden SVG filter for glass condensation noise */}
+          <svg style={{ position: "absolute", width: 0, height: 0 }}>
             <defs>
-              <mask id="visor-cutout">
-                <rect width="1920" height="1080" fill="white" />
-                <rect x="50" y="35" width="1820" height="1010" rx="260" ry="200" fill="black" />
-              </mask>
-              <filter id="polymer-texture">
-                <feTurbulence type="fractalNoise" baseFrequency="0.6" numOctaves="5" result="noise" />
-                <feComponentTransfer in="noise" result="faintNoise">
-                  <feFuncA type="linear" slope="0.15" />
-                </feComponentTransfer>
-                <feComposite operator="in" in="faintNoise" in2="SourceGraphic" result="composite" />
-                <feBlend mode="multiply" in="composite" in2="SourceGraphic" />
-              </filter>
               <filter id="glass-noise">
-                <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch"/>
+                <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch" />
               </filter>
             </defs>
-
-            {/* Helmet shell body */}
-            <rect width="1920" height="1080" fill="#0d0f14" mask="url(#visor-cutout)" filter="url(#polymer-texture)" />
-
-            {/* Inner shadow ring */}
-            <rect x="50" y="35" width="1820" height="1010" rx="260" ry="200" fill="none" stroke="black" strokeWidth="30" filter="blur(15px)" opacity="0.9" />
-            {/* Metallic seal ring */}
-            <rect x="50" y="35" width="1820" height="1010" rx="260" ry="200" fill="none" stroke="#1e2030" strokeWidth="3" />
-            {/* Chamfer highlight */}
-            <rect x="52" y="37" width="1816" height="1006" rx="258" ry="198" fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-            
-            {/* Physical visor reflection */}
-            <path d="M 400 60 Q 960 120 1520 60" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="1.5" />
-            
-            {/* 4 corner screws/rivets */}
-            <circle cx="100" cy="85" r="4" fill="#12151f" stroke="#1e2235" strokeWidth="1" />
-            <circle cx="1820" cy="85" r="4" fill="#12151f" stroke="#1e2235" strokeWidth="1" />
-            <circle cx="100" cy="995" r="4" fill="#12151f" stroke="#1e2235" strokeWidth="1" />
-            <circle cx="1820" cy="995" r="4" fill="#12151f" stroke="#1e2235" strokeWidth="1" />
           </svg>
 
           {/* ─── Layer 1.1: Layered Vignette ─────────────────────────── */}
@@ -287,7 +267,7 @@ export function HelmetHUD() {
             position: "absolute", inset: 0, zIndex: 57, pointerEvents: "none",
             animation: "condense 6s ease-in-out infinite",
           }}>
-             <div style={{ width: "100%", height: "100%", filter: "url(#glass-noise)", opacity: 0.8 }} />
+            <div style={{ width: "100%", height: "100%", filter: "url(#glass-noise)", opacity: 0.8 }} />
           </div>
 
           <div style={{
@@ -335,8 +315,8 @@ export function HelmetHUD() {
                 </div>
                 <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 14 }}>
                   {[1, 2, 3, 4].map((bar) => {
-                     const isOn = gravity < (1.0 - (bar * 0.2));
-                     return <div key={bar} style={{ width: 6, height: 4 + bar * 3, background: isOn ? (isDanger ? DANGER : OK) : "rgba(255,255,255,0.15)", borderRadius: 1 }} />
+                    const isOn = gravity < (1.0 - (bar * 0.2));
+                    return <div key={bar} style={{ width: 6, height: 4 + bar * 3, background: isOn ? (isDanger ? DANGER : OK) : "rgba(255,255,255,0.15)", borderRadius: 1 }} />
                   })}
                 </div>
               </div>
