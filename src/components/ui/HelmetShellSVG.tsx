@@ -2,7 +2,7 @@
  * HelmetShellSVG — Physical Helmet Shell with CSS Variable Theming
  * =================================================================
  * Renders the hexagonal helmet shell from the base SVG asset with:
- *   - CSS custom properties for cohesive sci-fi military color theming
+ *   - CSS custom properties for cohesive sci-fi theming
  *   - Three visual variants: nominal, warning, danger
  *   - Ambient visor glow and top light gradients
  *   - Smooth 0.6s transitions between states
@@ -54,22 +54,22 @@ function getVariantOverrides(variant: ShellVariant): Record<string, string> {
 
 /** Base color palette for the helmet shell */
 const BASE_COLORS = {
-  shellBase: "#1c1e22",
-  shellMid: "#212327",
-  shellLight: "#252729",
-  shellDeep: "#181a1d",
-  dotFill: "#3a3d42",
-  seamStroke: "#363a3f",
-  seamLight: "#3c4044",
-  seamHighlight: "#3e4246",
-  boltFace: "#2c2f33",
-  visorRingOuter: "#2a2e34",
-  visorRingInner: "#3c4148",
-  visorGasket: "#0e1012",
-  circuitPrimary: "#373d45",
-  circuitSecondary: "#2e333a",
-  circuitNode: "#3f4650",
-  visorGlowColor: "rgba(100,160,255,0.04)",
+  shellBase:      "#0d1a24",  
+  shellMid:       "#112030", 
+  shellLight:     "#162840",  
+  shellDeep:      "#080f16",  
+  dotFill:        "#1a3045",  
+  seamStroke:     "#1e3a52", 
+  seamLight:      "#254a66",  
+  seamHighlight:  "#4a8fa8",  
+  boltFace:       "#2a4a60",  
+  visorRingOuter: "#1a3a52",  
+  visorRingInner: "#6ab4cc",  
+  visorGasket:    "#060d14",  
+  circuitPrimary:   "#2a5570", 
+  circuitSecondary: "#1e3d52",
+  circuitNode:      "#3a7a96",
+  visorGlowColor: "rgba(80,180,220,0.06)", 
 };
 
 /** Returns merged color palette for the given variant */
@@ -108,13 +108,13 @@ export function HelmetShellSVG({ variant = "nominal" }: HelmetShellSVGProps) {
 
         {/* Visor hexagonal clip path */}
         <clipPath id="visorClip">
-          <polygon points="220,105 440,88 640,82 840,88 1060,105 1095,175 1110,360 1095,545 1060,615 940,632 780,642 640,645 500,642 340,632 220,615 185,545 170,360 185,175" />
+          <polygon points="31,0 350,0 640,0 930,0 1249,0 1280,91.8 1280,360 1280,628.3 1249,720 1075,720 843,720 640,720 437,720 205,720 31,720 0,628.3 0,360 0,91.8" />
         </clipPath>
 
         {/* Shell mask — everything except the visor opening */}
         <mask id="shellMask">
           <rect width="1280" height="720" fill="white" />
-          <polygon points="220,105 440,88 640,82 840,88 1060,105 1095,175 1110,360 1095,545 1060,615 940,632 780,642 640,645 500,642 340,632 220,615 185,545 170,360 185,175" fill="black" />
+          <polygon points="31,0 350,0 640,0 930,0 1249,0 1280,91.8 1280,360 1280,628.3 1249,720 1075,720 843,720 640,720 437,720 205,720 31,720 0,628.3 0,360 0,91.8" fill="black" />
         </mask>
 
         {/* Shell vignette gradient */}
@@ -130,7 +130,7 @@ export function HelmetShellSVG({ variant = "nominal" }: HelmetShellSVGProps) {
         </radialGradient>
 
         {/* Top light — simulates overhead illumination */}
-        <linearGradient id="topLight" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id="topLight" x1="0" y1="0" x2="0" y2="0">
           <stop offset="0%" stopColor="rgba(255,255,255,0.025)" />
           <stop offset="100%" stopColor="transparent" />
         </linearGradient>
@@ -150,127 +150,127 @@ export function HelmetShellSVG({ variant = "nominal" }: HelmetShellSVGProps) {
            ═══════════════════════════════════════ */}
 
       {/* TOP CENTER — sensor bar */}
-      <polygon points="480,0 800,0 820,42 760,62 700,72 640,75 580,72 520,62 460,42" fill={c.shellBase} stroke={c.seamStroke} strokeWidth="0.8" />
-      <polygon points="530,0 750,0 762,30 720,48 640,55 560,48 518,30" fill="#22252a" stroke="#404448" strokeWidth="0.5" />
-      <line x1="590" y1="20" x2="690" y2="20" stroke="#454a50" strokeWidth="0.8" />
-      <line x1="615" y1="32" x2="665" y2="32" stroke="#454a50" strokeWidth="0.6" />
-      <rect x="614" y="9" width="52" height="10" rx="2" fill={c.shellDeep} stroke={c.seamLight} strokeWidth="0.5" />
-      <rect x="622" y="12" width="7" height="5" rx="1" fill={c.boltFace} />
-      <rect x="633" y="12" width="7" height="5" rx="1" fill={c.boltFace} />
-      <rect x="644" y="12" width="7" height="5" rx="1" fill={c.boltFace} />
+      <polygon points="408,0 872,0 901,0 814,0 727,0 640,0 553,0 466,0 379,0" fill={c.shellBase} stroke={c.seamStroke} strokeWidth="0.8" />
+      <polygon points="480.5,0 799.5,0 816.9,0 756,0 640,0 524,0 463.1,0" fill="#22252a" stroke="#404448" strokeWidth="0.5" />
+      <line x1="567.5" y1="0" x2="712.5" y2="0" stroke="#454a50" strokeWidth="0.8" />
+      <line x1="603.8" y1="0" x2="676.3" y2="0" stroke="#454a50" strokeWidth="0.6" />
+      <rect x="602.3" y="0" width="75.4" height="14.5" rx="2" fill={c.shellDeep} stroke={c.seamLight} strokeWidth="0.5" />
+      <rect x="613.9" y="0" width="10.2" height="7.3" rx="1" fill={c.boltFace} />
+      <rect x="629.9" y="0" width="10.2" height="7.3" rx="1" fill={c.boltFace} />
+      <rect x="645.8" y="0" width="10.2" height="7.3" rx="1" fill={c.boltFace} />
 
       {/* TOP LEFT — angular panel */}
-      <polygon points="0,0 480,0 460,42 380,75 270,100 160,108 60,100 0,72" fill={c.shellBase} stroke={c.seamStroke} strokeWidth="0.8" />
-      <polygon points="0,0 420,0 402,36 330,66 225,90 130,98 40,91 0,66" fill={c.shellMid} stroke={c.seamLight} strokeWidth="0.5" />
-      <polygon points="0,0 200,0 215,30 180,52 100,65 30,58 0,42" fill={c.shellLight} stroke={c.seamHighlight} strokeWidth="0.6" />
-      <polygon points="220,0 420,0 405,32 355,54 270,66 210,56 215,30" fill="#23262a" stroke={c.seamLight} strokeWidth="0.5" />
+      <polygon points="0,0 408,0 379,0 263,0 103.5,0 0,0 0,0 0,0" fill={c.shellBase} stroke={c.seamStroke} strokeWidth="0.8" />
+      <polygon points="0,0 321,0 294.9,0 190.5,0 38.3,0 0,0 0,0 0,0" fill={c.shellMid} stroke={c.seamLight} strokeWidth="0.5" />
+      <polygon points="0,0 2,0 23.8,0 0,0 0,0 0,0 0,0" fill={c.shellLight} stroke={c.seamHighlight} strokeWidth="0.6" />
+      <polygon points="31,0 321,0 299.3,0 226.8,0 103.5,0 16.5,0 23.8,0" fill="#23262a" stroke={c.seamLight} strokeWidth="0.5" />
       {/* Slots */}
-      <rect x="55" y="32" width="28" height="5" rx="1" fill={c.shellDeep} stroke={c.seamStroke} strokeWidth="0.4" />
-      <rect x="92" y="38" width="28" height="5" rx="1" fill={c.shellDeep} stroke={c.seamStroke} strokeWidth="0.4" />
-      <rect x="130" y="46" width="24" height="5" rx="1" fill={c.shellDeep} stroke={c.seamStroke} strokeWidth="0.4" />
+      <rect x="0" y="0" width="40.6" height="7.3" rx="1" fill={c.shellDeep} stroke={c.seamStroke} strokeWidth="0.4" />
+      <rect x="0" y="0" width="40.6" height="7.3" rx="1" fill={c.shellDeep} stroke={c.seamStroke} strokeWidth="0.4" />
+      <rect x="0" y="0" width="34.8" height="7.3" rx="1" fill={c.shellDeep} stroke={c.seamStroke} strokeWidth="0.4" />
       {/* Bolts */}
-      <circle cx="42" cy="20" r="5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.8" /><circle cx="42" cy="20" r="2" fill={c.boltFace} />
-      <circle cx="190" cy="16" r="5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.8" /><circle cx="190" cy="16" r="2" fill={c.boltFace} />
-      <circle cx="360" cy="12" r="5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.8" /><circle cx="360" cy="12" r="2" fill={c.boltFace} />
+      <circle cx="0" cy="0" r="7.3" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.8" /><circle cx="0" cy="0" r="2.9" fill={c.boltFace} />
+      <circle cx="0" cy="0" r="7.3" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.8" /><circle cx="0" cy="0" r="2.9" fill={c.boltFace} />
+      <circle cx="234" cy="0" r="7.3" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.8" /><circle cx="234" cy="0" r="2.9" fill={c.boltFace} />
       {/* Ribs */}
-      <line x1="240" y1="0" x2="220" y2="105" stroke={c.seamStroke} strokeWidth="0.7" />
-      <line x1="390" y1="0" x2="375" y2="88" stroke={c.seamStroke} strokeWidth="0.7" />
+      <line x1="60" y1="0" x2="31" y2="0" stroke={c.seamStroke} strokeWidth="0.7" />
+      <line x1="277.5" y1="0" x2="255.8" y2="0" stroke={c.seamStroke} strokeWidth="0.7" />
 
       {/* TOP RIGHT — mirror */}
-      <polygon points="1280,0 800,0 820,42 900,75 1010,100 1120,108 1220,100 1280,72" fill={c.shellBase} stroke={c.seamStroke} strokeWidth="0.8" />
-      <polygon points="1280,0 860,0 878,36 950,66 1055,90 1150,98 1240,91 1280,66" fill={c.shellMid} stroke={c.seamLight} strokeWidth="0.5" />
-      <polygon points="1280,0 1080,0 1065,30 1100,52 1180,65 1250,58 1280,42" fill={c.shellLight} stroke={c.seamHighlight} strokeWidth="0.6" />
-      <polygon points="1060,0 860,0 875,32 925,54 1010,66 1070,56 1065,30" fill="#23262a" stroke={c.seamLight} strokeWidth="0.5" />
-      <rect x="1197" y="32" width="28" height="5" rx="1" fill={c.shellDeep} stroke={c.seamStroke} strokeWidth="0.4" />
-      <rect x="1160" y="38" width="28" height="5" rx="1" fill={c.shellDeep} stroke={c.seamStroke} strokeWidth="0.4" />
-      <rect x="1126" y="46" width="24" height="5" rx="1" fill={c.shellDeep} stroke={c.seamStroke} strokeWidth="0.4" />
-      <circle cx="1238" cy="20" r="5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.8" /><circle cx="1238" cy="20" r="2" fill={c.boltFace} />
-      <circle cx="1090" cy="16" r="5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.8" /><circle cx="1090" cy="16" r="2" fill={c.boltFace} />
-      <circle cx="920" cy="12" r="5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.8" /><circle cx="920" cy="12" r="2" fill={c.boltFace} />
-      <line x1="1040" y1="0" x2="1060" y2="105" stroke={c.seamStroke} strokeWidth="0.7" />
-      <line x1="890" y1="0" x2="905" y2="88" stroke={c.seamStroke} strokeWidth="0.7" />
+      <polygon points="1280,0 872,0 901,0 1017,0 1176.5,0 1280,0 1280,0 1280,0" fill={c.shellBase} stroke={c.seamStroke} strokeWidth="0.8" />
+      <polygon points="1280,0 959,0 985.1,0 1089.5,0 1241.8,0 1280,0 1280,0 1280,0" fill={c.shellMid} stroke={c.seamLight} strokeWidth="0.5" />
+      <polygon points="1280,0 1278,0 1256.3,0 1280,0 1280,0 1280,0 1280,0" fill={c.shellLight} stroke={c.seamHighlight} strokeWidth="0.6" />
+      <polygon points="1249,0 959,0 980.8,0 1053.3,0 1176.5,0 1263.5,0 1256.3,0" fill="#23262a" stroke={c.seamLight} strokeWidth="0.5" />
+      <rect x="1280" y="0" width="40.6" height="7.3" rx="1" fill={c.shellDeep} stroke={c.seamStroke} strokeWidth="0.4" />
+      <rect x="1280" y="0" width="40.6" height="7.3" rx="1" fill={c.shellDeep} stroke={c.seamStroke} strokeWidth="0.4" />
+      <rect x="1280" y="0" width="34.8" height="7.3" rx="1" fill={c.shellDeep} stroke={c.seamStroke} strokeWidth="0.4" />
+      <circle cx="1280" cy="0" r="7.3" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.8" /><circle cx="1280" cy="0" r="2.9" fill={c.boltFace} />
+      <circle cx="1280" cy="0" r="7.3" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.8" /><circle cx="1280" cy="0" r="2.9" fill={c.boltFace} />
+      <circle cx="1046" cy="0" r="7.3" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.8" /><circle cx="1046" cy="0" r="2.9" fill={c.boltFace} />
+      <line x1="1220" y1="0" x2="1249" y2="0" stroke={c.seamStroke} strokeWidth="0.7" />
+      <line x1="1002.5" y1="0" x2="1024.3" y2="0" stroke={c.seamStroke} strokeWidth="0.7" />
 
       {/* LEFT SIDE */}
-      <polygon points="0,72 60,100 160,108 185,175 170,360 185,545 160,615 60,640 0,660" fill={c.shellBase} stroke={c.seamStroke} strokeWidth="0.8" />
-      <polygon points="0,80 55,105 150,113 175,178 162,360 175,542 150,612 55,636 0,648" fill={c.shellMid} stroke={c.seamLight} strokeWidth="0.5" />
-      <polygon points="0,160 70,170 82,240 82,480 70,550 0,560" fill="#242628" stroke={c.seamHighlight} strokeWidth="0.5" />
-      <line x1="0" y1="200" x2="168" y2="210" stroke={c.seamStroke} strokeWidth="0.7" />
-      <line x1="0" y1="290" x2="164" y2="295" stroke={c.seamStroke} strokeWidth="0.7" />
-      <line x1="0" y1="360" x2="162" y2="360" stroke={c.seamStroke} strokeWidth="0.7" />
-      <line x1="0" y1="430" x2="164" y2="425" stroke={c.seamStroke} strokeWidth="0.7" />
-      <line x1="0" y1="520" x2="168" y2="510" stroke={c.seamStroke} strokeWidth="0.7" />
-      <circle cx="22" cy="200" r="4.5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.7" /><circle cx="22" cy="200" r="1.8" fill={c.boltFace} />
-      <circle cx="22" cy="360" r="4.5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.7" /><circle cx="22" cy="360" r="1.8" fill={c.boltFace} />
-      <circle cx="22" cy="520" r="4.5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.7" /><circle cx="22" cy="520" r="1.8" fill={c.boltFace} />
+      <polygon points="0,0 0,0 0,0 0,91.8 0,360 0,628.3 0,720 0,720 0,720" fill={c.shellBase} stroke={c.seamStroke} strokeWidth="0.8" />
+      <polygon points="0,0 0,0 0,1.9 0,96.1 0,360 0,623.9 0,720 0,720 0,720" fill={c.shellMid} stroke={c.seamLight} strokeWidth="0.5" />
+      <polygon points="0,70 0,84.5 0,186 0,534 0,635.5 0,650" fill="#242628" stroke={c.seamHighlight} strokeWidth="0.5" />
+      <line x1="0" y1="128" x2="0" y2="142.5" stroke={c.seamStroke} strokeWidth="0.7" />
+      <line x1="0" y1="258.5" x2="0" y2="265.8" stroke={c.seamStroke} strokeWidth="0.7" />
+      <line x1="0" y1="360" x2="0" y2="360" stroke={c.seamStroke} strokeWidth="0.7" />
+      <line x1="0" y1="461.5" x2="0" y2="454.3" stroke={c.seamStroke} strokeWidth="0.7" />
+      <line x1="0" y1="592" x2="0" y2="577.5" stroke={c.seamStroke} strokeWidth="0.7" />
+      <circle cx="0" cy="128" r="6.5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.7" /><circle cx="0" cy="128" r="2.6" fill={c.boltFace} />
+      <circle cx="0" cy="360" r="6.5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.7" /><circle cx="0" cy="360" r="2.6" fill={c.boltFace} />
+      <circle cx="0" cy="592" r="6.5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.7" /><circle cx="0" cy="592" r="2.6" fill={c.boltFace} />
 
       {/* RIGHT SIDE — mirror */}
-      <polygon points="1280,72 1220,100 1120,108 1095,175 1110,360 1095,545 1120,615 1220,640 1280,660" fill={c.shellBase} stroke={c.seamStroke} strokeWidth="0.8" />
-      <polygon points="1280,80 1225,105 1130,113 1105,178 1118,360 1105,542 1130,612 1225,636 1280,648" fill={c.shellMid} stroke={c.seamLight} strokeWidth="0.5" />
-      <polygon points="1280,160 1210,170 1198,240 1198,480 1210,550 1280,560" fill="#242628" stroke={c.seamHighlight} strokeWidth="0.5" />
-      <line x1="1280" y1="200" x2="1112" y2="210" stroke={c.seamStroke} strokeWidth="0.7" />
-      <line x1="1280" y1="290" x2="1116" y2="295" stroke={c.seamStroke} strokeWidth="0.7" />
-      <line x1="1280" y1="360" x2="1118" y2="360" stroke={c.seamStroke} strokeWidth="0.7" />
-      <line x1="1280" y1="430" x2="1116" y2="425" stroke={c.seamStroke} strokeWidth="0.7" />
-      <line x1="1280" y1="520" x2="1112" y2="510" stroke={c.seamStroke} strokeWidth="0.7" />
-      <circle cx="1258" cy="200" r="4.5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.7" /><circle cx="1258" cy="200" r="1.8" fill={c.boltFace} />
-      <circle cx="1258" cy="360" r="4.5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.7" /><circle cx="1258" cy="360" r="1.8" fill={c.boltFace} />
-      <circle cx="1258" cy="520" r="4.5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.7" /><circle cx="1258" cy="520" r="1.8" fill={c.boltFace} />
+      <polygon points="1280,0 1280,0 1280,0 1280,91.8 1280,360 1280,628.3 1280,720 1280,720 1280,720" fill={c.shellBase} stroke={c.seamStroke} strokeWidth="0.8" />
+      <polygon points="1280,0 1280,0 1280,1.9 1280,96.1 1280,360 1280,623.9 1280,720 1280,720 1280,720" fill={c.shellMid} stroke={c.seamLight} strokeWidth="0.5" />
+      <polygon points="1280,70 1280,84.5 1280,186 1280,534 1280,635.5 1280,650" fill="#242628" stroke={c.seamHighlight} strokeWidth="0.5" />
+      <line x1="1280" y1="128" x2="1280" y2="142.5" stroke={c.seamStroke} strokeWidth="0.7" />
+      <line x1="1280" y1="258.5" x2="1280" y2="265.8" stroke={c.seamStroke} strokeWidth="0.7" />
+      <line x1="1280" y1="360" x2="1280" y2="360" stroke={c.seamStroke} strokeWidth="0.7" />
+      <line x1="1280" y1="461.5" x2="1280" y2="454.3" stroke={c.seamStroke} strokeWidth="0.7" />
+      <line x1="1280" y1="592" x2="1280" y2="577.5" stroke={c.seamStroke} strokeWidth="0.7" />
+      <circle cx="1280" cy="128" r="6.5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.7" /><circle cx="1280" cy="128" r="2.6" fill={c.boltFace} />
+      <circle cx="1280" cy="360" r="6.5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.7" /><circle cx="1280" cy="360" r="2.6" fill={c.boltFace} />
+      <circle cx="1280" cy="592" r="6.5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.7" /><circle cx="1280" cy="592" r="2.6" fill={c.boltFace} />
 
       {/* BOTTOM LEFT */}
-      <polygon points="0,660 60,640 160,615 220,615 340,632 300,680 200,710 80,720 0,720" fill={c.shellBase} stroke={c.seamStroke} strokeWidth="0.8" />
-      <polygon points="0,668 58,646 155,620 218,620 335,636 295,676 196,706 78,716 0,712" fill={c.shellMid} stroke={c.seamLight} strokeWidth="0.5" />
-      <circle cx="48" cy="700" r="5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.7" /><circle cx="48" cy="700" r="2" fill={c.boltFace} />
-      <circle cx="155" cy="670" r="5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.7" /><circle cx="155" cy="670" r="2" fill={c.boltFace} />
+      <polygon points="0,720 0,720 0,720 31,720 205,720 147,720 2,720 0,720 0,720" fill={c.shellBase} stroke={c.seamStroke} strokeWidth="0.8" />
+      <polygon points="0,720 0,720 0,720 28.1,720 197.8,720 139.8,720 0,720 0,720 0,720" fill={c.shellMid} stroke={c.seamLight} strokeWidth="0.5" />
+      <circle cx="0" cy="720" r="7.3" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.7" /><circle cx="0" cy="720" r="2.9" fill={c.boltFace} />
+      <circle cx="0" cy="720" r="7.3" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.7" /><circle cx="0" cy="720" r="2.9" fill={c.boltFace} />
 
       {/* BOTTOM RIGHT */}
-      <polygon points="1280,660 1220,640 1120,615 1060,615 940,632 980,680 1080,710 1200,720 1280,720" fill={c.shellBase} stroke={c.seamStroke} strokeWidth="0.8" />
-      <polygon points="1280,668 1222,646 1125,620 1062,620 945,636 985,676 1084,706 1202,716 1280,712" fill={c.shellMid} stroke={c.seamLight} strokeWidth="0.5" />
-      <circle cx="1232" cy="700" r="5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.7" /><circle cx="1232" cy="700" r="2" fill={c.boltFace} />
-      <circle cx="1125" cy="670" r="5" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.7" /><circle cx="1125" cy="670" r="2" fill={c.boltFace} />
+      <polygon points="1280,720 1280,720 1280,720 1249,720 1075,720 1133,720 1278,720 1280,720 1280,720" fill={c.shellBase} stroke={c.seamStroke} strokeWidth="0.8" />
+      <polygon points="1280,720 1280,720 1280,720 1251.9,720 1082.3,720 1140.3,720 1280,720 1280,720 1280,720" fill={c.shellMid} stroke={c.seamLight} strokeWidth="0.5" />
+      <circle cx="1280" cy="720" r="7.3" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.7" /><circle cx="1280" cy="720" r="2.9" fill={c.boltFace} />
+      <circle cx="1280" cy="720" r="7.3" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.7" /><circle cx="1280" cy="720" r="2.9" fill={c.boltFace} />
 
       {/* BOTTOM CENTER — chin guard */}
-      <polygon points="300,680 340,632 500,642 580,650 640,653 700,650 780,642 940,632 980,680 920,706 800,718 700,722 640,724 580,722 480,718 360,706" fill={c.shellBase} stroke={c.seamStroke} strokeWidth="0.8" />
-      <polygon points="320,678 355,638 502,646 582,654 640,657 698,654 778,646 925,638 960,678 905,704 798,716 700,720 640,722 580,720 482,716 375,704" fill="#202326" stroke={c.seamLight} strokeWidth="0.6" />
-      <polygon points="480,660 580,656 640,654 700,656 800,660 790,690 720,702 640,705 560,702 490,690" fill="#242628" stroke={c.seamHighlight} strokeWidth="0.5" />
+      <polygon points="147,720 205,720 437,720 553,720 640,720 727,720 843,720 1075,720 1133,720 1046,720 872,720 727,720 640,720 553,720 408,720 234,720" fill={c.shellBase} stroke={c.seamStroke} strokeWidth="0.8" />
+      <polygon points="176,720 226.8,720 439.9,720 555.9,720 640,720 724.1,720 840.1,720 1053.3,720 1104,720 1024.3,720 869.1,720 727,720 640,720 553,720 410.9,720 255.8,720" fill="#202326" stroke={c.seamLight} strokeWidth="0.6" />
+      <polygon points="408,720 553,720 640,720 727,720 872,720 857.5,720 756,720 640,720 524,720 422.5,720" fill="#242628" stroke={c.seamHighlight} strokeWidth="0.5" />
       {/* Electronic modules */}
-      <rect x="365" y="660" width="52" height="20" rx="2" fill={c.shellDeep} stroke={c.seamStroke} strokeWidth="0.5" />
-      <rect x="371" y="664" width="9" height="12" rx="1" fill="#282b2f" />
-      <rect x="384" y="664" width="9" height="12" rx="1" fill="#282b2f" />
-      <rect x="397" y="664" width="9" height="12" rx="1" fill="#282b2f" />
-      <rect x="863" y="660" width="52" height="20" rx="2" fill={c.shellDeep} stroke={c.seamStroke} strokeWidth="0.5" />
-      <rect x="869" y="664" width="9" height="12" rx="1" fill="#282b2f" />
-      <rect x="882" y="664" width="9" height="12" rx="1" fill="#282b2f" />
-      <rect x="895" y="664" width="9" height="12" rx="1" fill="#282b2f" />
+      <rect x="241.3" y="720" width="75.4" height="29" rx="2" fill={c.shellDeep} stroke={c.seamStroke} strokeWidth="0.5" />
+      <rect x="249.9" y="720" width="13" height="17.4" rx="1" fill="#282b2f" />
+      <rect x="268.8" y="720" width="13" height="17.4" rx="1" fill="#282b2f" />
+      <rect x="287.7" y="720" width="13" height="17.4" rx="1" fill="#282b2f" />
+      <rect x="963.3" y="720" width="75.4" height="29" rx="2" fill={c.shellDeep} stroke={c.seamStroke} strokeWidth="0.5" />
+      <rect x="972" y="720" width="13" height="17.4" rx="1" fill="#282b2f" />
+      <rect x="990.9" y="720" width="13" height="17.4" rx="1" fill="#282b2f" />
+      <rect x="1009.8" y="720" width="13" height="17.4" rx="1" fill="#282b2f" />
       {/* Chin guard traces */}
-      <polyline points="418,670 480,668 490,662" fill="none" stroke={c.seamStroke} strokeWidth="0.6" />
-      <polyline points="418,676 480,675 492,670" fill="none" stroke={c.seamStroke} strokeWidth="0.6" />
-      <polyline points="862,670 800,668 790,662" fill="none" stroke={c.seamStroke} strokeWidth="0.6" />
-      <polyline points="862,676 800,675 788,670" fill="none" stroke={c.seamStroke} strokeWidth="0.6" />
+      <polyline points="318.1,720 408,720 422.5,720" fill="none" stroke={c.seamStroke} strokeWidth="0.6" />
+      <polyline points="318.1,720 408,720 425.4,720" fill="none" stroke={c.seamStroke} strokeWidth="0.6" />
+      <polyline points="961.9,720 872,720 857.5,720" fill="none" stroke={c.seamStroke} strokeWidth="0.6" />
+      <polyline points="961.9,720 872,720 854.6,720" fill="none" stroke={c.seamStroke} strokeWidth="0.6" />
       {/* Chin guard center point */}
-      <circle cx="640" cy="656" r="7" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.8" />
-      <circle cx="640" cy="656" r="3" fill="#242628" />
-      <circle cx="640" cy="656" r="1" fill="#484c52" />
+      <circle cx="640" cy="720" r="10.2" fill={c.shellDeep} stroke={c.seamHighlight} strokeWidth="0.8" />
+      <circle cx="640" cy="720" r="4.3" fill="#242628" />
+      <circle cx="640" cy="720" r="1.4" fill="#484c52" />
 
       {/* ═══════════════════════════════════════
            VISOR RING
            ═══════════════════════════════════════ */}
       {/* Outer shadow */}
-      <polygon points="220,105 440,88 640,82 840,88 1060,105 1095,175 1110,360 1095,545 1060,615 940,632 780,642 640,645 500,642 340,632 220,615 185,545 170,360 185,175" fill="none" stroke="#06070a" strokeWidth="14" />
+      <polygon points="31,0 350,0 640,0 930,0 1249,0 1280,91.8 1280,360 1280,628.3 1249,720 1075,720 843,720 640,720 437,720 205,720 31,720 0,628.3 0,360 0,91.8" fill="none" stroke="#06070a" strokeWidth="14" />
       {/* Main metallic ring */}
-      <polygon points="220,105 440,88 640,82 840,88 1060,105 1095,175 1110,360 1095,545 1060,615 940,632 780,642 640,645 500,642 340,632 220,615 185,545 170,360 185,175" fill="none" stroke={c.visorRingOuter} strokeWidth="6" />
+      <polygon points="31,0 350,0 640,0 930,0 1249,0 1280,91.8 1280,360 1280,628.3 1249,720 1075,720 843,720 640,720 437,720 205,720 31,720 0,628.3 0,360 0,91.8" fill="none" stroke={c.visorRingOuter} strokeWidth="6" />
       {/* Inner highlight */}
-      <polygon points="223,108 441,91 640,85 839,91 1057,108 1091,177 1106,360 1091,543 1057,612 939,629 779,639 640,642 501,639 341,629 223,612 189,543 175,360 189,177" fill="none" stroke={c.visorRingInner} strokeWidth="1.5" />
+      <polygon points="35.4,0 351.4,0 640,0 928.5,0 1244.7,0 1280,94.7 1280,360 1280,625.3 1244.7,720 1073.5,720 841.5,720 640,720 438.5,720 206.4,720 35.4,720 0,625.3 0,360 0,94.7" fill="none" stroke={c.visorRingInner} strokeWidth="1.5" />
       {/* Rubber gasket — stroke only, no fill to keep visor transparent */}
-      <polygon points="226,111 442,94 640,88 838,94 1054,111 1088,179 1102,360 1088,541 1054,609 938,626 778,636 640,639 502,636 342,626 226,609 192,541 178,360 192,179" fill="none" stroke={c.visorGasket} strokeWidth="6" />
+      <polygon points="39.7,0 352.9,0 640,0 927.1,0 1240.3,0 1280,97.6 1280,360 1280,622.5 1240.3,720 1072.1,720 840.1,720 640,720 439.9,720 207.9,720 39.7,720 0,622.5 0,360 0,97.6" fill="none" stroke={c.visorGasket} strokeWidth="6" />
 
       {/* Ring bolts */}
       {[
-        [440, 88], [640, 82], [840, 88], [1095, 175], [1095, 545],
-        [840, 632], [640, 645], [440, 632], [185, 545], [185, 175],
+        [350, 0], [640, 0], [930, 0], [1280, 91.8], [1280, 628.3],
+        [930, 720], [640, 720], [350, 720], [0, 628.3], [0, 91.8],
       ].map(([cx, cy], i) => (
         <g key={i}>
-          <circle cx={cx} cy={cy} r="5.5" fill="#1c1f23" stroke={c.seamHighlight} strokeWidth="0.8" />
-          <circle cx={cx} cy={cy} r="2.2" fill={c.boltFace} />
+          <circle cx={cx} cy={cy} r="8" fill="#1c1f23" stroke={c.seamHighlight} strokeWidth="0.8" />
+          <circle cx={cx} cy={cy} r="3.2" fill={c.boltFace} />
         </g>
       ))}
 
@@ -278,28 +278,28 @@ export function HelmetShellSVG({ variant = "nominal" }: HelmetShellSVGProps) {
            VISOR AREA — transparent to show 3D content
            Only the vignette overlay renders here.
            ═══════════════════════════════════════ */}
-      <radialGradient id="vv" cx="640" cy="360" r="480" gradientUnits="userSpaceOnUse">
+      <radialGradient id="vv" cx="640" cy="360" r="696" gradientUnits="userSpaceOnUse">
         <stop offset="35%" stopColor="rgba(0,0,0,0)" />
         <stop offset="100%" stopColor="rgba(0,0,0,0.75)" />
       </radialGradient>
-      <polygon points="229,114 443,97 640,91 837,97 1051,114 1084,181 1098,360 1084,539 1051,606 937,623 777,633 640,636 503,633 343,623 229,606 196,539 182,360 196,181" fill="url(#vv)" />
+      <polygon points="44.1,3.3 354.4,0 640,0 925.6,0 1235.9,3.3 1280,100.4 1280,360 1280,619.5 1235.9,716.7 1070.7,720 838.6,720 640,720 441.4,720 209.4,720 44.1,716.7 0,619.5 0,360 0,100.4" fill="url(#vv)" />
 
       {/* Top glass reflection */}
-      <ellipse cx="640" cy="104" rx="260" ry="14" fill="rgba(255,255,255,0.024)" />
+      <ellipse cx="640" cy="0" rx="377" ry="20.3" fill="rgba(255,255,255,0.024)" />
 
       {/* ═══ Ambient Lighting (rendered on top of panels) ═══ */}
       <rect width="1280" height="720" fill="url(#visorGlow)" mask="url(#shellMask)" pointerEvents="none" />
       <rect width="1280" height="216" fill="url(#topLight)" mask="url(#shellMask)" pointerEvents="none" />
 
       {/* ═══ Circuit traces ═══ */}
-      <polyline points="260,122 330,108 430,100 510,97" fill="none" stroke={c.circuitSecondary} strokeWidth="0.7" />
-      <polyline points="770,97 850,100 950,108 1020,122" fill="none" stroke={c.circuitSecondary} strokeWidth="0.7" />
-      <polyline points="260,598 330,612 430,620 510,623" fill="none" stroke={c.circuitSecondary} strokeWidth="0.7" />
-      <polyline points="770,623 850,620 950,612 1020,598" fill="none" stroke={c.circuitSecondary} strokeWidth="0.7" />
-      <polyline points="196,250 205,240 218,235" fill="none" stroke={c.circuitSecondary} strokeWidth="0.7" />
-      <polyline points="196,470 205,480 218,485" fill="none" stroke={c.circuitSecondary} strokeWidth="0.7" />
-      <polyline points="1084,250 1075,240 1062,235" fill="none" stroke={c.circuitSecondary} strokeWidth="0.7" />
-      <polyline points="1084,470 1075,480 1062,485" fill="none" stroke={c.circuitSecondary} strokeWidth="0.7" />
+      <polyline points="89,14.9 190.5,0 335.5,0 451.5,0" fill="none" stroke={c.circuitSecondary} strokeWidth="0.7" />
+      <polyline points="828.5,0 944.5,0 1089.5,0 1191,14.9" fill="none" stroke={c.circuitSecondary} strokeWidth="0.7" />
+      <polyline points="89,705.1 190.5,720 335.5,720 451.5,720" fill="none" stroke={c.circuitSecondary} strokeWidth="0.7" />
+      <polyline points="828.5,720 944.5,720 1089.5,720 1191,705.1" fill="none" stroke={c.circuitSecondary} strokeWidth="0.7" />
+      <polyline points="0,200.5 9.3,186 28.1,178.8" fill="none" stroke={c.circuitSecondary} strokeWidth="0.7" />
+      <polyline points="0,519.5 9.3,534 28.1,541.3" fill="none" stroke={c.circuitSecondary} strokeWidth="0.7" />
+      <polyline points="1280,200.5 1270.8,186 1251.9,178.8" fill="none" stroke={c.circuitSecondary} strokeWidth="0.7" />
+      <polyline points="1280,519.5 1270.8,534 1251.9,541.3" fill="none" stroke={c.circuitSecondary} strokeWidth="0.7" />
     </svg>
   );
 }

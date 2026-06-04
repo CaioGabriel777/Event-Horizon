@@ -18,9 +18,10 @@ import { useExperienceStore } from "@/store/useExperienceStore";
 
 const MONO = "'Courier New','Lucida Console',monospace";
 const WARN = "#ffaf38";
-const C_DIM = "rgba(255,255,255,0.6)";
+const C_DIM = "rgba(255,255,255,0.85)"; // Brightened for better visibility
 const C_BRIGHT = "#ffffff";
-const SHELL_BG = "rgba(13,15,20,0.95)";
+const PANEL_BG = "rgba(2,8,20,0.5)";
+const BORDER = "rgba(255, 255, 255, 0.15)";
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
@@ -40,11 +41,14 @@ export function Navigation() {
 
   const baseBtn: React.CSSProperties = {
     fontFamily: MONO,
-    fontSize: 10,
+    fontSize: 11, // Increased slightly for readability
+    fontWeight: 600, // Added weight to combat blur
     letterSpacing: "0.2em",
-    background: SHELL_BG,
-    borderRadius: 4,
-    padding: "6px 14px",
+    background: PANEL_BG,
+    backdropFilter: "blur(4px)",
+    WebkitBackdropFilter: "blur(4px)",
+    borderRadius: 6,
+    padding: "8px 16px",
     cursor: "pointer",
     transition: "all 0.3s ease",
     textDecoration: "none",
@@ -53,11 +57,12 @@ export function Navigation() {
 
   const navBtnStyle: React.CSSProperties = {
     ...baseBtn,
-    color: isAtHome ? C_DIM : "rgba(255,255,255,0.15)",
-    border: `1px solid ${isAtHome ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.08)"}`,
+    color: isAtHome ? C_DIM : "rgba(255,255,255,0.25)",
+    textShadow: isAtHome ? `0 0 6px rgba(255,255,255,0.3)` : "none", // HUD text glow
+    border: `1px solid ${isAtHome ? BORDER : "rgba(255,255,255,0.05)"}`,
     boxShadow: isAtHome
-      ? "0 0 10px rgba(255,255,255,0.05), inset 0 0 8px rgba(0,0,0,0.5)"
-      : "inset 0 0 8px rgba(0,0,0,0.5)",
+      ? "0 0 20px rgba(0,0,0,0.3), inset 0 0 10px rgba(0,0,0,0.6)"
+      : "none",
     pointerEvents: isAtHome ? "auto" : "none",
   };
 
@@ -71,48 +76,57 @@ export function Navigation() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
           transition={{ duration: 0.4, ease: "circIn" }}
-          className="hidden md:flex fixed top-0 left-0 right-0 z-[70] px-6 py-3 items-center justify-between pointer-events-none"
+          className="hidden md:flex fixed top-[5vh] left-[8vw] right-[8vw] z-[70] items-center justify-between pointer-events-none"
         >
-          {/* ─── DISENGAGE [H] (Left — replaces old logo) ───────────────── */}
+          {/* ─── DISENGAGE [H] (Left — aligned with telemetry) ────────────── */}
           <button
             onClick={handleDisengage}
             className="focus:outline-none pointer-events-auto"
             style={{
               ...baseBtn,
               color: WARN,
-              border: "1px solid rgba(255,175,56,0.35)",
-              boxShadow: "0 0 10px rgba(255,175,56,0.08), inset 0 0 8px rgba(0,0,0,0.5)",
+              textShadow: `0 0 6px ${WARN}66`,
+              border: "1px solid rgba(255,175,56,0.3)",
+              boxShadow: "0 0 15px rgba(255,175,56,0.1), inset 0 0 10px rgba(0,0,0,0.6)",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "rgba(255,175,56,0.7)";
-              e.currentTarget.style.boxShadow = "0 0 18px rgba(255,175,56,0.25), inset 0 0 8px rgba(0,0,0,0.5)";
+              e.currentTarget.style.borderColor = "rgba(255,175,56,0.6)";
+              e.currentTarget.style.boxShadow = "0 0 20px rgba(255,175,56,0.2), inset 0 0 10px rgba(0,0,0,0.6)";
               e.currentTarget.style.color = "#ffc85e";
+              e.currentTarget.style.textShadow = `0 0 10px #ffc85e99`;
+              e.currentTarget.style.background = "rgba(255,175,56,0.1)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "rgba(255,175,56,0.35)";
-              e.currentTarget.style.boxShadow = "0 0 10px rgba(255,175,56,0.08), inset 0 0 8px rgba(0,0,0,0.5)";
+              e.currentTarget.style.borderColor = "rgba(255,175,56,0.3)";
+              e.currentTarget.style.boxShadow = "0 0 15px rgba(255,175,56,0.1), inset 0 0 10px rgba(0,0,0,0.6)";
               e.currentTarget.style.color = WARN;
+              e.currentTarget.style.textShadow = `0 0 6px ${WARN}66`;
+              e.currentTarget.style.background = PANEL_BG;
             }}
             id="nav-disengage"
           >
             DISENGAGE [H]
           </button>
 
-          {/* ─── ABOUT & TECH (Right — disabled when scrolled) ──────────── */}
-          <div className="flex gap-3 pointer-events-auto">
+          {/* ─── ABOUT & TECH (Right — aligned with phase intel) ────────── */}
+          <div className="flex gap-4 pointer-events-auto">
             <Link
               href={isAtHome ? "/about" : "#"}
               style={navBtnStyle}
               onClick={(e) => { if (!isAtHome) e.preventDefault(); }}
               onMouseEnter={(e) => {
                 if (!isAtHome) return;
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.5)";
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.4)";
                 e.currentTarget.style.color = C_BRIGHT;
+                e.currentTarget.style.textShadow = `0 0 10px rgba(255,255,255,0.6)`;
+                e.currentTarget.style.background = "rgba(255,255,255,0.05)";
               }}
               onMouseLeave={(e) => {
                 if (!isAtHome) return;
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.25)";
+                e.currentTarget.style.borderColor = BORDER;
                 e.currentTarget.style.color = C_DIM;
+                e.currentTarget.style.textShadow = `0 0 6px rgba(255,255,255,0.3)`;
+                e.currentTarget.style.background = PANEL_BG;
               }}
               id="nav-about"
             >
@@ -124,13 +138,17 @@ export function Navigation() {
               onClick={(e) => { if (!isAtHome) e.preventDefault(); }}
               onMouseEnter={(e) => {
                 if (!isAtHome) return;
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.5)";
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.4)";
                 e.currentTarget.style.color = C_BRIGHT;
+                e.currentTarget.style.textShadow = `0 0 10px rgba(255,255,255,0.6)`;
+                e.currentTarget.style.background = "rgba(255,255,255,0.05)";
               }}
               onMouseLeave={(e) => {
                 if (!isAtHome) return;
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.25)";
+                e.currentTarget.style.borderColor = BORDER;
                 e.currentTarget.style.color = C_DIM;
+                e.currentTarget.style.textShadow = `0 0 6px rgba(255,255,255,0.3)`;
+                e.currentTarget.style.background = PANEL_BG;
               }}
               id="nav-tech"
             >
