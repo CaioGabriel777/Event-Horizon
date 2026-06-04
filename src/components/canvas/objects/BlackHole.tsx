@@ -38,6 +38,7 @@ import fragmentShader from "@/shaders/blackhole/fragment.glsl";
 interface BlackHoleProps {
   position?: [number, number, number];
   scale?: number;
+  visible?: boolean;
 }
 
 // Creates an empty 1x1 fallback texture to satisfy the WebGL program
@@ -56,6 +57,7 @@ function createDummyTexture(): DataTexture {
 export function BlackHole({
   position = [0, 0, -20],
   scale = 12,
+  visible = true,
 }: BlackHoleProps) {
   const materialRef = useRef<ShaderMaterial>(null!);
 
@@ -114,7 +116,7 @@ export function BlackHole({
   });
 
   return (
-    <mesh position={position} scale={scale} renderOrder={10}>
+    <mesh position={position} scale={scale} renderOrder={10} visible={visible}>
       <planeGeometry args={[5, 5]} />
       <shaderMaterial
         ref={materialRef}

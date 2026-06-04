@@ -57,7 +57,7 @@ function PhaseContent({ phase }: { phase: string }) {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.3, duration: 2.0, ease: [0.25, 0.46, 0.45, 0.94] }}
             className="text-5xl md:text-7xl font-extralight tracking-[0.2em] mb-8"
-            style={{ color: "#e8d8f0", backdropFilter: "blur(6px)" }}
+            style={{ color: "#e8d8f0" }}
           >
             SPACE IS NOT EMPTY
           </motion.h1>
@@ -108,25 +108,7 @@ function PhaseContent({ phase }: { phase: string }) {
 
 // ─── END PHASE CONTENT ───
 
-/**
- * NebulaBlurOverlay — CSS blur over the Canvas during home state.
- * Uses framer-motion useScroll to avoid React re-renders.
- */
-function NebulaBlurOverlay() {
-  const { scrollYProgress } = useScroll();
-  const blur = useTransform(scrollYProgress, [0, 0.15], [10, 0]);
-  const filter = useMotionTemplate`blur(${blur}px)`;
 
-  return (
-    <motion.div
-      className="fixed inset-0 z-[5] pointer-events-none"
-      style={{
-        backdropFilter: filter,
-        WebkitBackdropFilter: filter,
-      }}
-    />
-  );
-}
 
 /**
  * SingularityBlackout — Fast fade to black during suck-in.
@@ -154,7 +136,7 @@ export function SceneOverlay() {
 
   return (
     <>
-      <NebulaBlurOverlay />
+
       <div className={containerClass}>
         <AnimatePresence mode="wait">
           <PhaseContent phase={phase} />

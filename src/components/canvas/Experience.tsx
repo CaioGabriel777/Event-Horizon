@@ -1,13 +1,14 @@
 /**
  * Experience — The Heart of Event Horizon
  * ========================================
- * Main Canvas wrapper with DepthOfField blur for the cinematic
- * home-state → reveal transition.
+ * Main Canvas wrapper handling WebGL initialization, rendering, and
+ * cinematic scroll synchronization.
  *
- * POST-PROCESSING BLUR SYSTEM:
- * At scroll=0 (home), a heavy DOF blur is applied so the nebula
- * is visible but soft, putting focus on UI text. As the user scrolls
- * (0→0.15), the blur fades to 0, revealing the nebula in full clarity.
+ * OPTIMISTIC BOOT SYSTEM:
+ * Canvas mounts with opacity 0 and a pessimistic DPR (e.g., 0.75).
+ * Shaders are synchronously compiled on frame 0, and the canvas
+ * is faded in only after compilation is complete, providing a 
+ * seamless, stutter-free entry into the experience.
  */
 
 "use client";
@@ -75,14 +76,22 @@ function LoadingFallback() {
 
 // ─── Main Experience Component ──────────────────────────────────────────────
 
-export function Experience() {
-  return (
-    <div className="fixed inset-0 w-full h-full" id="experience-canvas">
+import { Loader } from "@react-three/drei";
 
+export function Experience() {
+  const dpr = useExperienceStore((s) => s.dpr);
+  const isReady = useExperienceStore((s) => s.isReady);
+
+  return (
+    <div 
+      className="fixed inset-0 w-full h-full" 
+      id="experience-canvas"
+      style={{ opacity: isReady ? 1 : 0, transition: 'opacity 0.3s ease' }}
+    >
       <HelmetHUD />
 
       <Canvas
-        dpr={PERFORMANCE.dprRange}
+        dpr={dpr}
         gl={{
           antialias: false,
           alpha: false,
@@ -96,13 +105,11 @@ export function Experience() {
           far: CAMERA.far,
           position: CAMERA.initialPosition,
         }}
-        performance={{ min: 0.5 }}
+        frameloop="always"
         onCreated={({ gl, scene, camera }) => {
           gl.compile(scene, camera);
         }}
       >
-        {/* <Stats /> */}
-
         <color attach="background" args={["#030308"]} />
         <fog attach="fog" args={["#030308", 40, 150]} />
         <StarField />
@@ -117,7 +124,7 @@ export function Experience() {
           </ScrollControls>
         </Suspense>
 
-        <PostProcessingPipeline />
+        {/* <PostProcessingPipeline /> */}
       </Canvas>
     </div>
   );

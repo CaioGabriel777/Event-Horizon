@@ -180,12 +180,11 @@ export function HelmetHUD() {
       {isHelmetOn && (
         <motion.div
           key="helmet"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
-          transition={{ duration: 0.4, ease: "circIn" }}
+          initial={{ opacity: 0, scale: 1.05 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 1.05 }}
           className="hidden md:block"
-          style={{ position: "fixed", inset: 0, zIndex: 40, overflow: "hidden", pointerEvents: "none" }}
+          style={{ position: "fixed", inset: 0, zIndex: 40, overflow: "hidden", pointerEvents: "none", contain: "strict" }}
         >
           {/* ─── Diegetic CSS Keyframes ─────────────────────────────────── */}
           <style>{`
@@ -218,72 +217,16 @@ export function HelmetHUD() {
           {/* ─── Layer 1: Physical Helmet Shell (SVG) ────────────────────── */}
           <HelmetShellSVG variant={shellVariant} />
 
-          {/* Hidden SVG filter for glass condensation noise */}
-          <svg style={{ position: "absolute", width: 0, height: 0 }}>
-            <defs>
-              <filter id="glass-noise">
-                <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch" />
-              </filter>
-            </defs>
-          </svg>
-
-          {/* ─── Layer 1.1: Layered Vignette ─────────────────────────── */}
-          <div
-            style={{
-              position: "absolute", inset: 0, zIndex: 55, pointerEvents: "none",
-              boxShadow: "inset 0 0 80px 30px rgba(0,0,0,0.9), inset 0 0 200px 80px rgba(0,0,0,0.6), inset 0 -60px 120px 20px rgba(0,0,0,0.5), inset 0 60px 120px 20px rgba(0,0,0,0.4)",
-            }}
-          />
-
-          {/* ─── Layer 1.2: Glass Reflections (Top & Bottom) ─────────── */}
-          <div style={{
-            position: "absolute", top: 35, left: 50, right: 50, height: "40%", zIndex: 56, pointerEvents: "none",
-            background: "linear-gradient(180deg, rgba(255,255,255,0.045) 0%, transparent 100%)",
-            borderRadius: "220px 220px 0 0",
-            clipPath: "ellipse(49% 100% at 50% 0%)"
-          }} />
-          <div style={{
-            position: "absolute", bottom: 35, left: 50, right: 50, height: "30%", zIndex: 56, pointerEvents: "none",
-            background: "linear-gradient(0deg, rgba(0,0,20,0.4) 0%, transparent 100%)",
-            borderRadius: "0 0 180px 180px"
-          }} />
-
-          {/* ─── Layer 1.3: Chromatic Aberrations ────────────────────── */}
-          <div style={{
-            position: "absolute", top: 35, bottom: 35, left: 50, width: 80, zIndex: 56, pointerEvents: "none",
-            background: "linear-gradient(90deg, rgba(255,0,60,0.04), rgba(0,80,255,0.04), transparent)",
-            borderRadius: "260px 0 0 200px"
-          }} />
-          <div style={{
-            position: "absolute", top: 35, bottom: 35, right: 50, width: 80, zIndex: 56, pointerEvents: "none",
-            background: "linear-gradient(-90deg, rgba(255,0,60,0.04), rgba(0,80,255,0.04), transparent)",
-            borderRadius: "0 260px 200px 0"
-          }} />
-
-          {/* ─── Layer 1.4: Glass Condensation & Scan Beam ───────────── */}
-          <div style={{
-            position: "absolute", inset: 0, zIndex: 57, pointerEvents: "none",
-            animation: "condense 6s ease-in-out infinite",
-          }}>
-            <div style={{ width: "100%", height: "100%", filter: "url(#glass-noise)", opacity: 0.8 }} />
-          </div>
-
+          {/* ─── Layer 1.4: Scan Beam (Hardware Accelerated) ─────────── */}
           <div style={{
             position: "absolute", top: 0, left: 0, right: 0, height: 2, zIndex: 58, pointerEvents: "none",
             background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)",
             animation: "scanMove 8s linear infinite",
+            willChange: "transform",
           }} />
 
-          {/* ─── Layer 1.5: Anti-Glare Scanlines ─────────────────────── */}
-          <div
-            style={{
-              position: "absolute", inset: 0, zIndex: 59, pointerEvents: "none", opacity: 0.025,
-              backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.12) 2px, rgba(255,255,255,0.12) 4px)",
-            }}
-          />
-
           {/* ─── Layer 2: Parallax Telemetry ─────────────────────────────── */}
-          <div ref={hudRef} style={{ position: "absolute", inset: 0, zIndex: 50 }}>
+          <div ref={hudRef} style={{ position: "absolute", inset: 0, zIndex: 50, willChange: "transform" }}>
 
             {/* ─── Left Telemetry Panel ──────────────────────────────────── */}
             <div style={{
@@ -297,8 +240,6 @@ export function HelmetHUD() {
               borderRadius: 6,
               padding: "14px 16px",
               fontFamily: MONO,
-              backdropFilter: "blur(4px)",
-              WebkitBackdropFilter: "blur(4px)",
               boxShadow: isDanger
                 ? "0 0 20px rgba(239,68,68,0.1), inset 0 0 10px rgba(0,0,0,0.6)"
                 : "0 0 20px rgba(0,0,0,0.3), inset 0 0 10px rgba(0,0,0,0.6)",
@@ -379,8 +320,6 @@ export function HelmetHUD() {
               borderRadius: 6,
               padding: "12px 24px",
               fontFamily: MONO,
-              backdropFilter: "blur(8px)",
-              WebkitBackdropFilter: "blur(8px)",
               boxShadow: isDanger
                 ? "0 0 30px rgba(239,68,68,0.1), inset 0 0 20px rgba(0,0,0,0.4)"
                 : "0 0 30px rgba(0,0,0,0.5), inset 0 0 20px rgba(0,0,0,0.3)",
@@ -487,8 +426,6 @@ export function HelmetHUD() {
                       borderRadius: 8,
                       padding: "24px",
                       fontFamily: "system-ui, sans-serif",
-                      backdropFilter: "blur(12px)",
-                      WebkitBackdropFilter: "blur(12px)",
                       boxShadow: "0 20px 40px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.05)",
                       pointerEvents: "auto",
                       cursor: "grab",

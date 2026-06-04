@@ -123,11 +123,11 @@ export const PERFORMANCE = {
   fpsMedium: 35,
   fpsLow: 20,
   particles: { high: 15000, medium: 8000, low: 3000 },
-  dprRange: [1, 2] as [number, number],
+  dprRange: [1, 1] as [number, number],
   dprMedium: 1.5,
   dprLow: 1,
-  fpsWindowSize: 60,
-  qualityDropDelay: 2000,
+  fpsWindowSize: 20,
+  qualityDropDelay: 200,
 } as const;
 
 // ─── Shader Constants ───────────────────────────────────────────────────────

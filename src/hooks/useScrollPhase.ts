@@ -28,6 +28,7 @@ export function useScrollPhase() {
   const suckInTriggered = useRef(false);
   const suckInTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resetCooldown = useRef(0);
+  const lastSetProgressOffset = useRef(-1);
 
   const instantScrollTo = useCallback(
     (targetOffset: number) => {
@@ -42,7 +43,11 @@ export function useScrollPhase() {
     const offset = scroll.offset;
     const now = Date.now();
 
-    setScrollProgress(offset);
+    // Prevent micro-updates from trashing React state (Threshold > 0.0001)
+    if (Math.abs(offset - lastSetProgressOffset.current) > 0.0001) {
+      setScrollProgress(offset);
+      lastSetProgressOffset.current = offset;
+    }
 
     // Detect scroll movement
     const delta = Math.abs(offset - lastOffset.current);

@@ -26,7 +26,7 @@ import fragmentShader from "@/shaders/nebula/fragment.glsl";
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 
-const PARTICLE_COUNT = 50;
+const PARTICLE_COUNT = 20;
 const CLOUD_CENTER_Z = 10;
 
 // ─── Particle Distribution ──────────────────────────────────────────────────

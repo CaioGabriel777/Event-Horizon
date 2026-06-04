@@ -14,6 +14,8 @@
 
 "use client";
 
+import { memo } from "react";
+
 /** Visual state variant for the helmet shell */
 type ShellVariant = "nominal" | "warning" | "danger";
 
@@ -88,7 +90,7 @@ function getColors(variant: ShellVariant) {
   return base;
 }
 
-export function HelmetShellSVG({ variant = "nominal" }: HelmetShellSVGProps) {
+export const HelmetShellSVG = memo(function HelmetShellSVG({ variant = "nominal" }: HelmetShellSVGProps) {
   const c = getColors(variant);
 
   return (
@@ -106,16 +108,7 @@ export function HelmetShellSVG({ variant = "nominal" }: HelmetShellSVGProps) {
           <circle cx="3.5" cy="3.5" r="0.85" fill={c.dotFill} />
         </pattern>
 
-        {/* Visor hexagonal clip path */}
-        <clipPath id="visorClip">
-          <polygon points="31,0 350,0 640,0 930,0 1249,0 1280,91.8 1280,360 1280,628.3 1249,720 1075,720 843,720 640,720 437,720 205,720 31,720 0,628.3 0,360 0,91.8" />
-        </clipPath>
 
-        {/* Shell mask — everything except the visor opening */}
-        <mask id="shellMask">
-          <rect width="1280" height="720" fill="white" />
-          <polygon points="31,0 350,0 640,0 930,0 1249,0 1280,91.8 1280,360 1280,628.3 1249,720 1075,720 843,720 640,720 437,720 205,720 31,720 0,628.3 0,360 0,91.8" fill="black" />
-        </mask>
 
         {/* Shell vignette gradient */}
         <radialGradient id="shellVig" cx="50%" cy="50%" r="65%">
@@ -136,14 +129,12 @@ export function HelmetShellSVG({ variant = "nominal" }: HelmetShellSVGProps) {
         </linearGradient>
       </defs>
 
-      {/* ═══ Background (masked — only renders outside visor opening) ═══ */}
-      <rect width="1280" height="720" fill="#0c0d0f" mask="url(#shellMask)" />
-
-      {/* ═══ Shell base with vignette ═══ */}
-      <rect width="1280" height="720" fill="url(#shellVig)" mask="url(#shellMask)" />
-
-      {/* ═══ Dot mesh ═══ */}
-      <rect width="1280" height="720" fill="url(#dots)" mask="url(#shellMask)" opacity="0.85" />
+      {/* ═══ Background (Direct Composition Friendly — No clipPath) ═══ */}
+      <g>
+        <path fill="#0c0d0f" fillRule="evenodd" d="M 0,0 L 1280,0 L 1280,720 L 0,720 Z M 31,0 L 350,0 L 640,0 L 930,0 L 1249,0 L 1280,91.8 L 1280,360 L 1280,628.3 L 1249,720 L 1075,720 L 843,720 L 640,720 L 437,720 L 205,720 L 31,720 L 0,628.3 L 0,360 L 0,91.8 Z" />
+        <path fill="url(#shellVig)" fillRule="evenodd" d="M 0,0 L 1280,0 L 1280,720 L 0,720 Z M 31,0 L 350,0 L 640,0 L 930,0 L 1249,0 L 1280,91.8 L 1280,360 L 1280,628.3 L 1249,720 L 1075,720 L 843,720 L 640,720 L 437,720 L 205,720 L 31,720 L 0,628.3 L 0,360 L 0,91.8 Z" />
+        <path fill="url(#dots)" opacity="0.85" fillRule="evenodd" d="M 0,0 L 1280,0 L 1280,720 L 0,720 Z M 31,0 L 350,0 L 640,0 L 930,0 L 1249,0 L 1280,91.8 L 1280,360 L 1280,628.3 L 1249,720 L 1075,720 L 843,720 L 640,720 L 437,720 L 205,720 L 31,720 L 0,628.3 L 0,360 L 0,91.8 Z" />
+      </g>
 
       {/* ═══════════════════════════════════════
            STRUCTURAL PANELS
@@ -288,8 +279,10 @@ export function HelmetShellSVG({ variant = "nominal" }: HelmetShellSVGProps) {
       <ellipse cx="640" cy="0" rx="377" ry="20.3" fill="rgba(255,255,255,0.024)" />
 
       {/* ═══ Ambient Lighting (rendered on top of panels) ═══ */}
-      <rect width="1280" height="720" fill="url(#visorGlow)" mask="url(#shellMask)" pointerEvents="none" />
-      <rect width="1280" height="216" fill="url(#topLight)" mask="url(#shellMask)" pointerEvents="none" />
+      <g pointerEvents="none">
+        <path fill="url(#visorGlow)" fillRule="evenodd" d="M 0,0 L 1280,0 L 1280,720 L 0,720 Z M 31,0 L 350,0 L 640,0 L 930,0 L 1249,0 L 1280,91.8 L 1280,360 L 1280,628.3 L 1249,720 L 1075,720 L 843,720 L 640,720 L 437,720 L 205,720 L 31,720 L 0,628.3 L 0,360 L 0,91.8 Z" />
+        <path fill="url(#topLight)" fillRule="evenodd" d="M 0,0 L 1280,0 L 1280,720 L 0,720 Z M 31,0 L 350,0 L 640,0 L 930,0 L 1249,0 L 1280,91.8 L 1280,360 L 1280,628.3 L 1249,720 L 1075,720 L 843,720 L 640,720 L 437,720 L 205,720 L 31,720 L 0,628.3 L 0,360 L 0,91.8 Z" />
+      </g>
 
       {/* ═══ Circuit traces ═══ */}
       <polyline points="89,14.9 190.5,0 335.5,0 451.5,0" fill="none" stroke={c.circuitSecondary} strokeWidth="0.7" />
@@ -302,4 +295,4 @@ export function HelmetShellSVG({ variant = "nominal" }: HelmetShellSVGProps) {
       <polyline points="1280,519.5 1270.8,534 1251.9,541.3" fill="none" stroke={c.circuitSecondary} strokeWidth="0.7" />
     </svg>
   );
-}
+});

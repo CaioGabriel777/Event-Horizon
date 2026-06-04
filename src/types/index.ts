@@ -39,12 +39,16 @@ export interface ExperienceState {
   isTransitioning: boolean;
   isReady: boolean;             // True when Canvas is fully compiled
   isHelmetOn: boolean;          // True when the astronaut helmet overlay is active
+  dpr: number;
+  antialias: boolean;
 
   // Actions
   setScrollProgress: (v: number) => void;
   setQualityTier: (tier: QualityTier) => void;
   setReady: () => void;
   setIsHelmetOn: (v: boolean | ((prev: boolean) => boolean)) => void;
+  setDpr: (v: number) => void;
+  setAntialias: (v: boolean) => void;
 }
 
 /** Performance metrics for the tech dashboard */

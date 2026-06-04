@@ -45,8 +45,6 @@ export function Navigation() {
     fontWeight: 600, // Added weight to combat blur
     letterSpacing: "0.2em",
     background: PANEL_BG,
-    backdropFilter: "blur(4px)",
-    WebkitBackdropFilter: "blur(4px)",
     borderRadius: 6,
     padding: "8px 16px",
     cursor: "pointer",
