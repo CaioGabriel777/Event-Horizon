@@ -48,7 +48,7 @@ function PhaseContent({ phase }: { phase: string }) {
             animate={{ opacity: 0.4 }}
             transition={{ delay: 1.0, duration: 2, ease: "easeOut" }}
             className="text-xs tracking-[0.6em] uppercase mb-8"
-            style={{ color: "#8b6a9e" }}
+            style={{ color: "#fff" }}
           >
             An immersive WebGL experience
           </motion.p>
@@ -66,7 +66,7 @@ function PhaseContent({ phase }: { phase: string }) {
             animate={{ opacity: 0.5 }}
             transition={{ delay: 2.0, duration: 1.5, ease: "easeOut" }}
             className="text-sm tracking-wide max-w-lg mx-auto"
-            style={{ color: "#7a6a8a" }}
+            style={{ color: "#fff" }}
           >
             Scroll to descend into the gravitational abyss
           </motion.p>
@@ -94,68 +94,8 @@ function PhaseContent({ phase }: { phase: string }) {
       );
 
     case "discovery":
-      return (
-        <motion.div
-          key="discovery"
-          variants={fadeVariants}
-          initial="initial"
-          animate="animate"
-          exit="exit"
-          className="text-right"
-        >
-          <p className="text-xs tracking-[0.6em] uppercase text-slate-600 mb-3">
-            Phase II
-          </p>
-          <h2 className="text-2xl md:text-3xl font-light tracking-[0.1em] text-slate-300">
-            DISCOVERY
-          </h2>
-          <p className="text-xs text-slate-500 mt-3 max-w-xs ml-auto">
-            Light bends. Space warps. Something massive lies ahead.
-          </p>
-        </motion.div>
-      );
-
     case "approach":
-      return (
-        <motion.div
-          key="approach"
-          variants={fadeVariants}
-          initial="initial"
-          animate="animate"
-          exit="exit"
-          className="text-right"
-        >
-          <p className="text-xs tracking-[0.6em] uppercase text-orange-600/40 mb-2">
-            Phase III
-          </p>
-          <h2 className="text-xl md:text-2xl font-light tracking-[0.1em] text-slate-300/70">
-            APPROACH
-          </h2>
-          <p className="text-xs text-slate-500/60 mt-2 max-w-xs ml-auto">
-            The fabric of spacetime stretches.
-          </p>
-        </motion.div>
-      );
-
     case "event-horizon":
-      return (
-        <motion.div
-          key="event-horizon"
-          variants={fadeVariants}
-          initial="initial"
-          animate="animate"
-          exit="exit"
-          className="text-right"
-        >
-          <p className="text-xs tracking-[0.3em] uppercase text-red-800/40 mb-2">
-            POINT OF NO RETURN
-          </p>
-          <h2 className="text-lg md:text-xl font-light text-red-900/60">
-            EVENT HORIZON
-          </h2>
-        </motion.div>
-      );
-
     case "singularity":
     case "traversal":
     case "revelation":
@@ -168,25 +108,7 @@ function PhaseContent({ phase }: { phase: string }) {
 
 // ─── END PHASE CONTENT ───
 
-/**
- * NebulaBlurOverlay — CSS blur over the Canvas during home state.
- * Uses framer-motion useScroll to avoid React re-renders.
- */
-function NebulaBlurOverlay() {
-  const { scrollYProgress } = useScroll();
-  const blur = useTransform(scrollYProgress, [0, 0.15], [10, 0]);
-  const filter = useMotionTemplate`blur(${blur}px)`;
 
-  return (
-    <motion.div
-      className="fixed inset-0 z-[5] pointer-events-none"
-      style={{
-        backdropFilter: filter,
-        WebkitBackdropFilter: filter,
-      }}
-    />
-  );
-}
 
 /**
  * SingularityBlackout — Fast fade to black during suck-in.
@@ -214,7 +136,7 @@ export function SceneOverlay() {
 
   return (
     <>
-      <NebulaBlurOverlay />
+
       <div className={containerClass}>
         <AnimatePresence mode="wait">
           <PhaseContent phase={phase} />

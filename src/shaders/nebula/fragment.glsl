@@ -51,11 +51,15 @@ void main() {
     float structure = pow(luminance, 2.0); 
     structure = smoothstep(0.02, 0.80, structure); 
 
+    // ─── Fake Local Bloom (Replaces EffectComposer) ─────────────────────────
+    float fakeBloom = smoothstep(0.4, 0.9, structure) * 2.5;
+
     // ─── Zero-Accumulation (Anti-Plastic) ───────────────────────────────────
     // Direct color multiplication by structure. 
     // Thin smoke = Color 0.0 (Black). Summing zero prevents solid walls!
     
     vec3 color = vBaseColor * (structure * 3.5);
+    color += vBaseColor * fakeBloom; // add fake local bloom
 
     // Core glow illuminates only the absolute center of the dust
     float coreGlow = exp(-dist * dist * 15.0) * (vDensity * 0.5);
@@ -66,8 +70,8 @@ void main() {
     float dissolve = 1.0 - smoothstep(0.0, 0.8, uProgress);
     float alpha = structure * vDensity * dissolve * (0.1 + 0.9 * vDustMask);
     
-    // Phantom multiplier perfectly sustains 25-50 particles
-    alpha *= 0.25; 
+    // Phantom multiplier perfectly sustains 20 particles (boosted from 0.25 to 0.70)
+    alpha *= 0.70; 
     
     alpha *= pow(edgeFade, 2.0);
 

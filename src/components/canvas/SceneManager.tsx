@@ -8,8 +8,9 @@
  * This gives butter-smooth camera movement through the entire
  * scroll range.
  *
- * Signals isReady on first render frame so the loader knows
- * when GPU compilation is complete.
+ * SHADER WARMUP: On frame 0 (!isReady), all heavy 3D components are forced
+ * to be visible. This guarantees that Three.js gl.compile() processes them
+ * synchronously before the canvas fades in, preventing extreme lag spikes.
  */
 
 "use client";
@@ -61,18 +62,25 @@ export function SceneManager() {
 
   const { camera } = useThree();
   const phase = useExperienceStore((s) => s.phase);
+  const isReady = useExperienceStore((s) => s.isReady);
   const setReady = useExperienceStore((s) => s.setReady);
+  const setAntialias = useExperienceStore((s) => s.setAntialias);
   const scroll = useScroll();
 
   const lookTarget = useRef(new Vector3(0, 0, 0));
   const readySignaled = useRef(false);
 
   useFrame((_, delta) => {
-    // Signal ready on first frame (shaders compiled, GPU warm)
+    // Signal ready after shaders compile
     if (!readySignaled.current) {
       readySignaled.current = true;
-      // Small delay to ensure the first frame fully renders
-      setTimeout(() => setReady(), 100);
+      // Synchronous compilation has already occurred in this frame.
+      // The next RequestAnimationFrame triggers the fade-in, releasing the screen to the user.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setReady();
+        });
+      });
     }
 
     const scrollProgress = scroll.offset;
@@ -113,12 +121,12 @@ export function SceneManager() {
 
   return (
     <group>
-      <BlackHole position={[0, 0, -20]} scale={22} />
-      <NebulaScene active={nebulaActive} />
-      <DiscoveryScene active={phase === "discovery" || phase === "approach" || phase === "revelation"} />
-      <ApproachScene active={bhActive} />
-      <EventHorizonScene active={phase === "event-horizon"} />
-      <SingularityScene active={phase === "singularity"} />
+      <BlackHole position={[0, 0, -20]} scale={22} visible={!isReady || true} />
+      <NebulaScene active={!isReady || nebulaActive} />
+      <DiscoveryScene active={!isReady || phase === "discovery" || phase === "approach" || phase === "revelation"} />
+      <ApproachScene active={!isReady || bhActive} />
+      <EventHorizonScene active={!isReady || phase === "event-horizon"} />
+      <SingularityScene active={!isReady || phase === "singularity"} />
     </group>
   );
 }

@@ -27,18 +27,7 @@ export function EventHorizonScene({ active }: EventHorizonSceneProps) {
 
   return (
     <group ref={groupRef}>
-      <Text
-        position={[0, 1, 2]}
-        fontSize={0.4}
-        color="#8b2500"
-        anchorX="center"
-        anchorY="middle"
-        font="/fonts/SpaceGrotesk-Medium.ttf"
-        material-transparent
-        material-opacity={0.9}
-      >
-        NO RETURN
-      </Text>
+
 
       {/* Intense accretion glow */}
       <pointLight
