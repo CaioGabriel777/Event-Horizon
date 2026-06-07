@@ -39,6 +39,9 @@ export const useExperienceStore = create<ExperienceState>()(
     isHelmetOn: true,
     dpr: 0.75,
     antialias: false,
+    isLooping: false,
+    needsScrollReset: false,
+    isWhiteout: false,
 
     setScrollProgress: (v: number) => {
       const progress = clamp(v, 0, 1);
@@ -67,6 +70,14 @@ export const useExperienceStore = create<ExperienceState>()(
       }
     },
 
+    setPhase: (phase: Phase) => {
+      set({ phase });
+    },
+
+    setGravity: (v: number) => {
+      set({ gravity: v });
+    },
+
     setQualityTier: (tier: QualityTier) => {
       set({ qualityTier: tier });
     },
@@ -83,5 +94,8 @@ export const useExperienceStore = create<ExperienceState>()(
 
     setDpr: (v: number) => set({ dpr: v }),
     setAntialias: (v: boolean) => set({ antialias: v }),
+    setIsLooping: (v: boolean) => set({ isLooping: v }),
+    setNeedsScrollReset: (v: boolean) => set({ needsScrollReset: v }),
+    setIsWhiteout: (v: boolean) => set({ isWhiteout: v }),
   }))
 );

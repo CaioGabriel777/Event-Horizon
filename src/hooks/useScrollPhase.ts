@@ -40,6 +40,51 @@ export function useScrollPhase() {
   );
 
   useFrame(() => {
+    const state = useExperienceStore.getState();
+
+    // 1. Reset (Highest priority)
+    if (state.needsScrollReset) {
+      console.log("[ScrollPhase] executando reset");
+      scroll.el.style.overflow = "auto";
+      scroll.el.scrollTop = 0;
+      state.setScrollProgress(0);
+      state.setNeedsScrollReset(false);
+
+      const releaseWhiteout = () => {
+        console.log("[ScrollPhase] chamando setIsWhiteout(false)");
+        useExperienceStore.getState().setIsWhiteout(false);
+      };
+
+      let released = false;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!released) {
+            released = true;
+            releaseWhiteout();
+          }
+        });
+      });
+      setTimeout(() => {
+        if (!released) {
+          released = true;
+          releaseWhiteout();
+        }
+      }, 100); // fallback safety
+
+      return;
+    }
+
+    // 2. Lock scroll during singularity
+    if (state.phase === "singularity") {
+      scroll.el.style.overflow = "hidden";
+      return;
+    }
+
+    // 3. Ensure overflow is restored in other phases
+    if (scroll.el.style.overflow !== "auto") {
+      scroll.el.style.overflow = "auto";
+    }
+
     const offset = scroll.offset;
     const now = Date.now();
 
@@ -66,21 +111,20 @@ export function useScrollPhase() {
 
       let progress = offset;
       const accelerate = () => {
+        if (!suckInTriggered.current) return;
         progress += (1.0 - progress) * 0.12;
         if (progress < 0.995) {
           instantScrollTo(progress);
           requestAnimationFrame(accelerate);
         } else {
           instantScrollTo(1.0);
-          suckInTimer.current = setTimeout(() => {
-            instantScrollTo(0);
-            resetCooldown.current = Date.now() + 3000;
-            suckInTriggered.current = false;
-            suckInTimer.current = null;
-          }, BLACKOUT_HOLD_MS);
         }
       };
       requestAnimationFrame(accelerate);
+    }
+
+    if (offset >= 0.98 && !useExperienceStore.getState().isLooping) {
+      useExperienceStore.getState().setIsLooping(true);
     }
 
     // Reset suck-in if user scrolls back
