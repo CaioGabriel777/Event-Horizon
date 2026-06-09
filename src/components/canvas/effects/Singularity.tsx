@@ -193,8 +193,8 @@ export function SingularityPass() {
       return;
     }
 
-    // ─── Advance Timeline (Total duration: 3.5 seconds) ───────────────
-    const DURATION = 3.5;
+    // ─── Advance Timeline (Total duration: 2 seconds) ───────────────
+    const DURATION = 2;
     timerRef.current = Math.min(1.0, timerRef.current + delta / DURATION);
     const t = timerRef.current;
 
