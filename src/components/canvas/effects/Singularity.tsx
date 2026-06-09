@@ -193,8 +193,8 @@ export function SingularityPass() {
       return;
     }
 
-    // ─── Advance Timeline (Total duration: 2 seconds) ───────────────
-    const DURATION = 2;
+    // ─── Advance Timeline (Total duration: 1.5 seconds) ───────────────
+    const DURATION = 1.5;
     timerRef.current = Math.min(1.0, timerRef.current + delta / DURATION);
     const t = timerRef.current;
 
@@ -237,8 +237,8 @@ export function SingularityPass() {
     // Post-reset: starts at 0.0 and fades to 1.0 to reveal the new universe.
     const act4 = isPostReset ? smoothstep(0.85, 1.0, t) : 1.0;
 
-    // FOV stretching — extreme camera zoom
-    const targetFov = MathUtils.lerp(75, 150, act2);
+    // FOV stretching — extreme camera zoom IN (dolly zoom into the black hole)
+    const targetFov = MathUtils.lerp(75, 25, act2);
     const pCam = camera as PerspectiveCamera;
     if (Math.abs(pCam.fov - targetFov) > 0.1) {
       pCam.fov = targetFov;
