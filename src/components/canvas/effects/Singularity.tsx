@@ -55,11 +55,15 @@ const fragmentShader = /* glsl */ `
   uniform float uAct4;   // 0→1: fade-in after reset
   uniform float uTime;
   uniform vec2  uCenter;
+  uniform vec2  uResolution;
   uniform sampler2D tDiffuse;
 
   void main() {
     vec2 uv = vUv;
     vec2 dir = uv - uCenter;
+
+    dir.x *= uResolution.x / uResolution.y;
+
     float dist = length(dir);
 
     // ─── Act 1: Chromatic aberration & Relativistic Beaming ─────────
@@ -98,6 +102,9 @@ const fragmentShader = /* glsl */ `
     float voidRadius = uAct3 * 1.5; // Grows beyond monitor edges
     float swallow = smoothstep(voidRadius, voidRadius + 0.15, dist);
     
+    float angle = atan(dir.y, dir.x);
+    float plasmaTurbulence = sin(angle * 20.0 + uTime * 15.0) * 0.02;
+
     // Creates a superheated ring of fire at the exact edge of the void
     float ringGlow = smoothstep(voidRadius - 0.05, voidRadius + 0.1, dist) * smoothstep(voidRadius + 0.2, voidRadius + 0.05, dist);
     color.rgb += vec3(1.0, 0.2, 0.0) * ringGlow * uAct3 * 2.5;
@@ -149,6 +156,7 @@ export function SingularityPass() {
         uAct4: { value: 0 },
         uTime: { value: 0 },
         uCenter: { value: new Vector2(0.5, 0.5) },
+        uResolution: { value: new Vector2(1, 1) },
       },
       vertexShader,
       fragmentShader,
@@ -249,6 +257,7 @@ export function SingularityPass() {
     material.uniforms.uAct3.value = act3;
     material.uniforms.uAct4.value = act4;
     material.uniforms.uTime.value = clock.getElapsedTime();
+    material.uniforms.uResolution.value.set(gl.domElement.width, gl.domElement.height);
 
     // Project black hole world position to screen UV
     projected.copy(BLACK_HOLE_POSITION).project(camera);
