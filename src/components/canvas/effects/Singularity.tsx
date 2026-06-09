@@ -50,8 +50,8 @@ const fragmentShader = /* glsl */ `
   varying vec2 vUv;
 
   uniform float uAct1;   // 0→1: relativistic beaming, chromatic aberration
-  uniform float uAct2;   // 0→1: radial stretch, speed lines, FOV
-  uniform float uAct3;   // 0→1: progressive dissolution to black
+  uniform float uAct2;   // 0→1: Spaghettification (radial smear & redshift)
+  uniform float uAct3;   // 0→1: Event horizon expanding void
   uniform float uAct4;   // 0→1: fade-in after reset
   uniform float uTime;
   uniform vec2  uCenter;
@@ -62,51 +62,50 @@ const fragmentShader = /* glsl */ `
     vec2 dir = uv - uCenter;
     float dist = length(dir);
 
-    // ─── Act 1: Chromatic aberration & slight distortion ─────────
-    float aberration = uAct1 * 0.04 * dist;
+    // ─── Act 1: Chromatic aberration & Relativistic Beaming ─────────
+    // Violently separates RGB channels as gravity intensifies
+    float aberration = uAct1 * 0.05 * dist;
     float r = texture2D(tDiffuse, uv + dir * aberration).r;
+    float g = texture2D(tDiffuse, uv).g;
     float b = texture2D(tDiffuse, uv - dir * aberration).b;
-    vec4 color = texture2D(tDiffuse, uv);
-    color.r = mix(color.r, r, uAct1);
-    color.b = mix(color.b, b, uAct1);
+    vec4 color = vec4(r, g, b, 1.0);
 
-    // ─── Act 2: Radial stretch & procedural speed lines ──────────
+    // ─── Act 2: Spaghettification (Radial Smear & Redshift) ──────────
     if (uAct2 > 0.001) {
-      // Gravitational distortion
-      float pull = uAct2 * (1.0 - dist * dist) * 0.85;
-      vec2 distortedUv = uCenter + dir * (1.0 - pull);
-      distortedUv = clamp(distortedUv, 0.0, 1.0);
-      color = mix(color, texture2D(tDiffuse, distortedUv), uAct2);
+      // 1. Extreme Gravitational Pinch (Pulls UVs towards the center)
+      float pinch = pow(dist, 0.4) * uAct2 * 1.5;
+      vec2 baseUv = uCenter + dir * (1.0 - pinch);
 
-      // Procedural speed lines
-      float angle = atan(dir.y, dir.x);
-      float slices = 120.0;
-      float sliceId = floor(angle / (6.28318 / slices));
-      float hash = fract(sin(sliceId * 127.1 + 311.7) * 43758.5453);
-      float sliceCenter = (sliceId + 0.5) * (6.28318 / slices);
-      float angleDist = abs(mod(angle - sliceCenter + 3.14159, 6.28318) - 3.14159);
-      float streak = smoothstep(0.025, 0.0, angleDist) * (0.4 + hash * 0.6);
-      float radialFade = smoothstep(0.0, 0.18, dist) * smoothstep(0.9, 0.5, dist);
-      vec3 streakColor = mix(vec3(1.0), vec3(0.4, 0.8, 1.0), dist * 1.5);
-      color.rgb += streakColor * streak * radialFade * uAct2 * 3.5;
+      // 2. Radial Motion Blur (Violently blurs light inward)
+      vec4 smudgedColor = vec4(0.0);
+      const float SAMPLES = 20.0;
+      for(float i = 0.0; i < SAMPLES; i++) {
+        float scale = 1.0 - (i / SAMPLES) * uAct2 * 0.5;
+        vec2 sampleUv = uCenter + (baseUv - uCenter) * scale;
+        smudgedColor += texture2D(tDiffuse, sampleUv);
+      }
+      color = mix(color, smudgedColor / SAMPLES, uAct2);
+
+      // 3. Redshift / Heat Death
+      // As light falls into the hole, it loses energy and shifts to dark orange/red
+      vec3 redshift = vec3(1.2, 0.3, 0.02); 
+      float heat = smoothstep(0.0, 0.8, uAct2) * (1.0 - dist);
+      color.rgb += redshift * heat * uAct2 * 1.5;
     }
 
-    // ─── Act 3: Progressive dissolution to absolute black ────────
-    // Darkens from bottom to top 
-    float dissolveY = smoothstep(
-      1.0 - uAct3 * 1.4,   // dissolution line drops from above
-      1.0 - uAct3 * 0.8,
-      uv.y
-    );
-    float dissolve = mix(1.0 - uAct3 * 0.6, 1.0, dissolveY);
-    color.rgb *= dissolve;
+    // ─── Act 3: Event Horizon Collapse (Absolute Black) ────────
+    // A sphere of absolute darkness growing from the center, swallowing the screen
+    float voidRadius = uAct3 * 1.5; // Grows beyond monitor edges
+    float swallow = smoothstep(voidRadius, voidRadius + 0.15, dist);
+    
+    // Creates a superheated ring of fire at the exact edge of the void
+    float ringGlow = smoothstep(voidRadius - 0.05, voidRadius + 0.1, dist) * smoothstep(voidRadius + 0.2, voidRadius + 0.05, dist);
+    color.rgb += vec3(1.0, 0.2, 0.0) * ringGlow * uAct3 * 2.5;
 
-    // Additional radial darkening in act 3
-    float vigAct3 = 1.0 - uAct3 * smoothstep(0.2, 0.8, dist);
-    color.rgb *= vigAct3;
+    // Multiply screen by the encroaching darkness
+    color.rgb *= swallow;
 
     // ─── Act 4: Fade in after reset ──────────────────────────────
-    // The screen was black — smoothly reveals the new universe
     color.rgb *= uAct4;
 
     gl_FragColor = color;
