@@ -42,8 +42,14 @@ export interface ExperienceState {
   dpr: number;
   antialias: boolean;
   isLooping: boolean;
-  needsScrollReset: boolean;
-  isWhiteout: boolean;
+  /** Timeline progress (0.0 to 1.0) of the singularity cinematic sequence */
+  singularityProgress: number;  
+  
+  /** True when the singularity cinematic is currently running, locking the scroll */
+  isSingularityActive: boolean;
+  
+  /** Signal flag set by SingularityPass to instruct useScrollPhase to synchronously reset the DOM scroll */
+  shouldResetScroll: boolean;
 
   // Actions
   setScrollProgress: (v: number) => void;
@@ -55,8 +61,9 @@ export interface ExperienceState {
   setDpr: (v: number) => void;
   setAntialias: (v: boolean) => void;
   setIsLooping: (v: boolean) => void;
-  setNeedsScrollReset: (v: boolean) => void;
-  setIsWhiteout: (v: boolean) => void;
+  setSingularityProgress: (v: number) => void;
+  setIsSingularityActive: (v: boolean) => void;
+  setShouldResetScroll: (v: boolean) => void;
 }
 
 /** Performance metrics for the tech dashboard */

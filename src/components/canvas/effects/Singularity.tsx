@@ -1,36 +1,18 @@
 /**
  * SingularityPass — Manual Screen-Space Gravitational Collapse
  * =============================================================
- * Renders the singularity distortion effect WITHOUT the `postprocessing`
- * EffectComposer, avoiding the color space mutations that degrade nebula
- * and black hole visuals.
+ * Renders the singularity distortion effect by taking over the R3F 
+ * render loop (priority=1). It uses a single timer (t: 0.0 -> 1.0) 
+ * as the sole source of truth to drive a 4-act cinematic sequence.
+ * 
+ * Act 1: Relativistic beaming and chromatic aberration
+ * Act 2: Radial stretch, speed lines, and extreme FOV stretching
+ * Act 3: Progressive bottom-to-top vignette dissolution into black
+ * Act 4: Smooth fade-in revealing the new universe
  *
- * Architecture:
- *  - Uses `useFrame` with `renderPriority=1` to take over rendering from R3F.
- *  - When INACTIVE (uSuckStrength ≈ 0): calls `gl.render(scene, camera)`
- *    directly — identical to R3F's default path, zero overhead, zero
- *    color interference.
- *  - When ACTIVE: renders the scene to an FBO, then draws a full-screen
- *    quad with the singularity distortion shader. The FBO uses the same
- *    UnsignedByteType / RGBAFormat as the default framebuffer, so colors
- *    match pixel-perfectly across the transition.
- *
- * Visual layers:
- *  1. Quadratic-falloff UV distortion — pulls every pixel toward the
- *     projected center of the black hole in screen space.
- *  2. Radial chromatic aberration — R/B channels separate along the
- *     pull direction, simulating light being torn apart.
- *  3. Hyperspace radial stretch — multi-sample directional motion blur
- *     that transforms point lights into radial speed lines, with a
- *     blue-white Doppler tinge on the edges.
- *  4. Closing vignette — darkness contracts around the pull origin.
- *  5. White flash — screen blows out to pure white when collapse is
- *     near-total (uSuckStrength > 0.92).
- *
- * Animation is frame-rate independent via `1 - Math.pow(0.01, delta)`.
- *
- * Usage (inside <Canvas>, no EffectComposer needed):
- *   <SingularityPass />
+ * It communicates with the scroll controller purely by signaling 
+ * \`shouldResetScroll\` via the Zustand store, maintaining strict 
+ * separation of concerns between DOM manipulation and GPU rendering.
  */
 
 "use client";
@@ -44,18 +26,14 @@ import {
   PlaneGeometry,
   Vector2,
   Vector3,
+  MathUtils,
+  PerspectiveCamera
 } from "three";
 import { useFrame } from "@react-three/fiber";
 import { useFBO } from "@react-three/drei";
 import { useExperienceStore } from "@/store/useExperienceStore";
 
-// ─── Black Hole World Position ──────────────────────────────────────────────
-// Must match the constant in SceneManager.tsx (BH_Z = -20) and
-// BlackHole.tsx default position prop.
 const BLACK_HOLE_POSITION = new Vector3(0, 0, -20);
-
-/** Threshold below which the effect is invisible and we skip the FBO pass */
-const ACTIVATION_THRESHOLD = 0.001;
 
 // ─── Vertex Shader (full-screen quad) ───────────────────────────────────────
 const vertexShader = /* glsl */ `
@@ -71,100 +49,92 @@ const vertexShader = /* glsl */ `
 const fragmentShader = /* glsl */ `
   varying vec2 vUv;
 
-  uniform sampler2D tDiffuse;        // Scene rendered to FBO
-  uniform float uSuckStrength;       // 0.0 → 1.0 — gravitational pull intensity
-  uniform float uVignetteStrength;   // 0.0 → 1.0 — darkness closing in
-  uniform float uStretchStrength;    // 0.0 → 1.0 — hyperspace radial stretch
-  uniform float uTime;               // Elapsed time (seconds)
-  uniform vec2  uCenter;             // Screen-space UV of the black hole center
+  uniform float uAct1;   // 0→1: relativistic beaming, chromatic aberration
+  uniform float uAct2;   // 0→1: radial stretch, speed lines, FOV
+  uniform float uAct3;   // 0→1: progressive dissolution to black
+  uniform float uAct4;   // 0→1: fade-in after reset
+  uniform float uTime;
+  uniform vec2  uCenter;
+  uniform sampler2D tDiffuse;
 
   void main() {
     vec2 uv = vUv;
     vec2 dir = uv - uCenter;
     float dist = length(dir);
 
-    // ─── Gravitational UV distortion (quadratic falloff) ─────────────
-    // Pixels closer to the center are pulled harder; the quadratic term
-    // ensures the edges of the screen barely move, preventing ugly
-    // border clamping artifacts.
-    float pull = uSuckStrength * (1.0 - dist * dist);
-    vec2 distortedUv = uCenter + dir * (1.0 - pull);
-    distortedUv = clamp(distortedUv, 0.0, 1.0);
+    // ─── Act 1: Chromatic aberration & slight distortion ─────────
+    float aberration = uAct1 * 0.04 * dist;
+    float r = texture2D(tDiffuse, uv + dir * aberration).r;
+    float b = texture2D(tDiffuse, uv - dir * aberration).b;
+    vec4 color = texture2D(tDiffuse, uv);
+    color.r = mix(color.r, r, uAct1);
+    color.b = mix(color.b, b, uAct1);
 
-    vec4 color = texture2D(tDiffuse, distortedUv);
+    // ─── Act 2: Radial stretch & procedural speed lines ──────────
+    if (uAct2 > 0.001) {
+      // Gravitational distortion
+      float pull = uAct2 * (1.0 - dist * dist) * 0.85;
+      vec2 distortedUv = uCenter + dir * (1.0 - pull);
+      distortedUv = clamp(distortedUv, 0.0, 1.0);
+      color = mix(color, texture2D(tDiffuse, distortedUv), uAct2);
 
-    // ─── Radial chromatic aberration ─────────────────────────────────
-    // Light separating as it is gravitationally pulled — red channel
-    // pushed outward, blue channel inward along the radial direction.
-    float aberration = uSuckStrength * 0.018 * dist;
-    float r = texture2D(tDiffuse, distortedUv + dir * aberration).r;
-    float b = texture2D(tDiffuse, distortedUv - dir * aberration).b;
-    color.r = r;
-    color.b = b;
-
-    // ─── Hyperspace radial stretch ───────────────────────────────────
-    // Multi-sample radial motion blur: instead of distorting UVs once,
-    // samples the texture N times along the radial direction toward the
-    // center and accumulates — transforms point lights into speed lines.
-    if (uStretchStrength > 0.001) {
-      int SAMPLES = 32;
-      vec4 stretched = vec4(0.0);
-      float totalWeight = 0.0;
-
-      for (int i = 0; i < 32; i++) {
-        float t = float(i) / 31.0;
-        // More aggressive pull on final samples — exponential acceleration
-        float pullT = t * t * uStretchStrength * 0.55;
-        vec2 sampleUv = mix(distortedUv, uCenter, pullT);
-        sampleUv = clamp(sampleUv, 0.0, 1.0);
-
-        float weight = exp(-t * 2.5); // Smoother falloff = longer trails
-        stretched += texture2D(tDiffuse, sampleUv) * weight;
-        totalWeight += weight;
-      }
-      stretched /= totalWeight;
-
-      // Increase blend — more dominant
-      color = mix(color, stretched, uStretchStrength * 0.92);
-
-      // More aggressive brightness boost on trails
-      float brightness = 1.0 + uStretchStrength * 2.2;
-      color.rgb *= brightness;
-
-      // Cool blue-white Doppler tinge on the edges
-      float dopplerEdge = dist * uStretchStrength;
-      color.rgb = mix(color.rgb, color.rgb * vec3(0.7, 0.85, 1.4), dopplerEdge * 0.6);
+      // Procedural speed lines
+      float angle = atan(dir.y, dir.x);
+      float slices = 120.0;
+      float sliceId = floor(angle / (6.28318 / slices));
+      float hash = fract(sin(sliceId * 127.1 + 311.7) * 43758.5453);
+      float sliceCenter = (sliceId + 0.5) * (6.28318 / slices);
+      float angleDist = abs(mod(angle - sliceCenter + 3.14159, 6.28318) - 3.14159);
+      float streak = smoothstep(0.025, 0.0, angleDist) * (0.4 + hash * 0.6);
+      float radialFade = smoothstep(0.0, 0.18, dist) * smoothstep(0.9, 0.5, dist);
+      vec3 streakColor = mix(vec3(1.0), vec3(0.4, 0.8, 1.0), dist * 1.5);
+      color.rgb += streakColor * streak * radialFade * uAct2 * 3.5;
     }
 
-    // ─── Closing vignette ────────────────────────────────────────────
-    // Darkness contracts around the center proportional to pull strength.
-    float vignette = 1.0 - smoothstep(0.3, 1.0, dist * (1.0 + uVignetteStrength * 2.5));
-    color.rgb *= vignette;
+    // ─── Act 3: Progressive dissolution to absolute black ────────
+    // Darkens from bottom to top 
+    float dissolveY = smoothstep(
+      1.0 - uAct3 * 1.4,   // dissolution line drops from above
+      1.0 - uAct3 * 0.8,
+      uv.y
+    );
+    float dissolve = mix(1.0 - uAct3 * 0.6, 1.0, dissolveY);
+    color.rgb *= dissolve;
 
-    // ─── White flash at total collapse ───────────────────────────────
-    // When uSuckStrength crosses ~0.92, the screen blooms to pure white,
-    // simulating the final photon burst before oblivion.
-    float flash = smoothstep(0.88, 1.0, uSuckStrength);
-    color.rgb = mix(color.rgb, vec3(1.0), flash * flash);
+    // Additional radial darkening in act 3
+    float vigAct3 = 1.0 - uAct3 * smoothstep(0.2, 0.8, dist);
+    color.rgb *= vigAct3;
+
+    // ─── Act 4: Fade in after reset ──────────────────────────────
+    // The screen was black — smoothly reveals the new universe
+    color.rgb *= uAct4;
 
     gl_FragColor = color;
   }
 `;
 
-// ─── Component ──────────────────────────────────────────────────────────────
-
 /**
- * SingularityPass — R3F render-priority component.
- *
- * Takes over rendering (priority 1) to optionally inject the singularity
- * distortion as a manual FBO → full-screen quad pass.
- * Returns `null` — no JSX output; rendering is handled imperatively.
+ * Signals the store to reset scroll and physics state.
+ * The FOV will be naturally interpolated back by the timeline (Act 4).
  */
+function executeAtomicReset() {
+  const store = useExperienceStore.getState();
+  store.setShouldResetScroll(true);  // signals useScrollPhase
+  store.setGravity(0);
+  store.setPhase('traversal');
+  store.setSingularityProgress(0);
+}
+
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
 export function SingularityPass() {
   const fbo = useFBO();
-  const currentSuck = useRef(0);
-  const currentStretch = useRef(0);
-  const loopTriggered = useRef(false);
+  const timerRef = useRef(0);         // 0.0 → 1.0 timeline
+  const isRunning = useRef(false);    // is the sequence active?
+  const hasReset = useRef(false);     // has the atomic reset been executed?
   const projected = useMemo(() => new Vector3(), []);
 
   // ─── Full-screen quad setup (isolated Scene + OrthoCamera) ──────────
@@ -174,9 +144,10 @@ export function SingularityPass() {
     const mat = new ShaderMaterial({
       uniforms: {
         tDiffuse: { value: null },
-        uSuckStrength: { value: 0 },
-        uVignetteStrength: { value: 0 },
-        uStretchStrength: { value: 0 },
+        uAct1: { value: 0 },
+        uAct2: { value: 0 },
+        uAct3: { value: 0 },
+        uAct4: { value: 0 },
         uTime: { value: 0 },
         uCenter: { value: new Vector2(0.5, 0.5) },
       },
@@ -191,7 +162,6 @@ export function SingularityPass() {
     return { quadCamera: cam, quadScene: scn, material: mat, geometry: geo };
   }, []);
 
-  // ─── Cleanup (Three.js resource disposal) ───────────────────────────
   useEffect(() => {
     return () => {
       material.dispose();
@@ -199,109 +169,99 @@ export function SingularityPass() {
     };
   }, [material, geometry]);
 
-  // ─── Render Loop (priority 1 = takes over from R3F) ─────────────────
   useFrame(({ gl, scene, camera, clock }, delta) => {
-    const phase = useExperienceStore.getState().phase;
-    const gravity = useExperienceStore.getState().gravity;
-    const isWhiteout = useExperienceStore.getState().isWhiteout;
+    const state = useExperienceStore.getState();
 
-    // Prevents any triggers or ghost rendering while isWhiteout is active
-    if (isWhiteout) {
-      console.log(
-        "[Singularity] whiteout guard ativo, needsScrollReset:",
-        useExperienceStore.getState().needsScrollReset,
-        "scrollProgress:",
-        useExperienceStore.getState().scrollProgress,
-        "loopTriggered:",
-        loopTriggered.current
-      );
-      gl.render(scene, camera);
-      return;
-    }
-
-    // ─── Suck strength target ──────────────────────────────────────
-    // Remap gravity from the singularity phase range (0.9→1.0 scroll,
-    // where gravity is already 1.0) into a clean 0→1 ramp.
-    // This prevents distortion from leaking into earlier phases where
-    // gravity already has non-zero values.
-    const suckTarget =
-      phase === "singularity" ? Math.min(1.0, (gravity - 0.9) / 0.1) : 0.0;
-
-    // ─── Stretch target ──────────────────────────────────────────
-    // Enters slightly before the suck (gravity 0.82 vs 0.9) to create
-    // the cinematic acceleration → collapse sequence. Stars stretch
-    // into speed lines first, then the suck collapses everything.
-    const stretchTarget =
-      phase === "singularity" ? Math.min(1.0, (gravity - 0.82) / 0.10) : 0.0;
-
-    // Frame-rate-independent exponential lerp:
-    // At 60fps delta≈0.016 → factor≈0.928
-    // At 30fps delta≈0.033 → factor≈0.998
-    const lerpFactor = 1.0 - Math.pow(0.01, delta);
-    currentSuck.current += (suckTarget - currentSuck.current) * lerpFactor;
-    // Stretch lerps faster (×2.5) for snappier acceleration feel
-    currentStretch.current +=
-      (stretchTarget - currentStretch.current) * lerpFactor * 2.5;
-
-    // ─── Seamless Loop Reset ─────────────────────────────────────
-    // When the screen is almost entirely white (uSuckStrength >= 0.96),
-    // we trigger the reset signal to useScrollPhase.
-    if (currentSuck.current >= 0.96 && !loopTriggered.current) {
-      loopTriggered.current = true;
-      useExperienceStore.getState().setIsWhiteout(true);
-      useExperienceStore.getState().setNeedsScrollReset(true);
-      useExperienceStore.getState().setGravity(0);
-      useExperienceStore.getState().setPhase("traversal");
-    }
-
-    const scrollProgress = useExperienceStore.getState().scrollProgress;
-    if (!isWhiteout && loopTriggered.current && scrollProgress < 0.05) {
-      loopTriggered.current = false; // Ready for the next cycle
-    }
-
-    // ─── Inactive path: render normally (zero overhead) ──────────
-    // When both effects are negligible, call gl.render directly —
-    // identical to R3F's default render, no FBO, no color mutation.
-    if (phase !== "singularity") {
-      currentSuck.current = 0;
-      currentStretch.current = 0;
-      material.uniforms.uSuckStrength.value = 0;
-      material.uniforms.uStretchStrength.value = 0;
-      gl.render(scene, camera);
-      return;
-    }
-
+    // ─── Entry Detection ──────────────────────────────────────────────
+    // Triggers only if not running and singularity phase is reached
     if (
-      currentSuck.current < ACTIVATION_THRESHOLD &&
-      currentStretch.current < ACTIVATION_THRESHOLD
+      state.phase === 'singularity' &&
+      state.gravity >= 0.92 &&
+      !isRunning.current &&
+      !hasReset.current  // Prevents re-entry during the current cycle
     ) {
-      currentSuck.current = 0;
-      currentStretch.current = 0;
+      isRunning.current = true;
+      hasReset.current = false;
+      timerRef.current = 0;
+      useExperienceStore.getState().setIsSingularityActive(true);
+    }
+
+    // ─── Inactive Path ────────────────────────────────────────────────
+    // Renders directly to screen, matching R3F default zero-overhead render
+    if (!isRunning.current) {
       gl.render(scene, camera);
       return;
     }
 
-    // ─── Active path: FBO → distortion quad ──────────────────────
+    // ─── Advance Timeline (Total duration: 3.5 seconds) ───────────────
+    const DURATION = 3.5;
+    timerRef.current = Math.min(1.0, timerRef.current + delta / DURATION);
+    const t = timerRef.current;
 
-    // Update shader uniforms
-    material.uniforms.uSuckStrength.value = currentSuck.current;
-    material.uniforms.uVignetteStrength.value = currentSuck.current;
-    material.uniforms.uStretchStrength.value = currentStretch.current;
+    // Broadcast current progress for UI overlays
+    useExperienceStore.getState().setSingularityProgress(t);
+
+    // ─── Mid-Darkness Atomic Reset (t = 0.82) ─────────────────────────
+    // Screen is completely pitch black — perfectly hides the state reset
+    if (t >= 0.82 && !hasReset.current) {
+      hasReset.current = true;
+      executeAtomicReset();
+    }
+
+    // ─── Timeline Complete ────────────────────────────────────────────
+    if (t >= 1.0) {
+      isRunning.current = false;
+      hasReset.current = false; // Only reset the guard when cycle completes
+      timerRef.current = 0;
+      useExperienceStore.getState().setIsSingularityActive(false);
+      useExperienceStore.getState().setSingularityProgress(0);
+      gl.render(scene, camera);
+      return;
+    }
+
+    // ─── Derive GPU Uniforms from Timeline 't' ────────────────────────
+
+    const isPostReset = t >= 0.82;
+
+    // Act 1: Relativistic beaming & aberration (t: 0.0 → 0.25)
+    const act1 = isPostReset ? 0.0 : smoothstep(0.0, 0.25, t);
+
+    // Act 2: Spaghettification & FOV (t: 0.20 → 0.55)
+    const act2 = isPostReset ? 0.0 : smoothstep(0.20, 0.55, t);
+
+    // Act 3: Dissolution to pitch black (t: 0.50 → 0.80)
+    const act3 = isPostReset ? 0.0 : smoothstep(0.50, 0.80, t);
+
+    // Act 4: Fade in after reset (t: 0.85 → 1.0)
+    // Pre-reset: keep it at 1.0 so the scene is visible!
+    // Post-reset: starts at 0.0 and fades to 1.0 to reveal the new universe.
+    const act4 = isPostReset ? smoothstep(0.85, 1.0, t) : 1.0;
+
+    // FOV stretching — extreme camera zoom
+    const targetFov = MathUtils.lerp(75, 150, act2);
+    const pCam = camera as PerspectiveCamera;
+    if (Math.abs(pCam.fov - targetFov) > 0.1) {
+      pCam.fov = targetFov;
+      pCam.updateProjectionMatrix();
+    }
+
+    material.uniforms.uAct1.value = act1;
+    material.uniforms.uAct2.value = act2;
+    material.uniforms.uAct3.value = act3;
+    material.uniforms.uAct4.value = act4;
     material.uniforms.uTime.value = clock.getElapsedTime();
 
-    // Project black hole world position → screen UV
+    // Project black hole world position to screen UV
     projected.copy(BLACK_HOLE_POSITION).project(camera);
     material.uniforms.uCenter.value.set(
       (projected.x + 1) / 2,
       (projected.y + 1) / 2
     );
 
-    // Pass 1: Render the full scene to the FBO
+    // ─── FBO to Quad Render Pass ──────────────────────────────────────
     gl.setRenderTarget(fbo);
     gl.render(scene, camera);
     gl.setRenderTarget(null);
-
-    // Pass 2: Feed the FBO to the distortion shader and render to screen
     material.uniforms.tDiffuse.value = fbo.texture;
     gl.render(quadScene, quadCamera);
   }, 1);

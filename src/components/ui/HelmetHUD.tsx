@@ -59,7 +59,6 @@ export function HelmetHUD() {
   const gravity = useExperienceStore((s) => s.gravity);
   const phase = useExperienceStore((s) => s.phase);
   const isWhiteout = useExperienceStore((s) => s.isWhiteout);
-
   const isSingularity = phase === "singularity";
   const isEventHorizon = phase === "event-horizon";
   const isDanger = isSingularity || isEventHorizon;
@@ -197,20 +196,7 @@ export function HelmetHUD() {
 
   return (
     <>
-      {/* ─── Whiteout Transition Overlay ───────────────────────────────── */}
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 999, // acima de tudo, inclusive o HUD
-          background: "white",
-          opacity: isWhiteout ? 1 : 0,
-          pointerEvents: isWhiteout ? "all" : "none",
-          transition: isWhiteout
-            ? "opacity 0.1s ease" // entra rápido — já estava no flash
-            : "opacity 2s ease",  // sai devagar — universo se materializando
-        }}
-      />
+
 
       <AnimatePresence>
         {isHelmetOn && (

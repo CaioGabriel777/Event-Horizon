@@ -38,6 +38,14 @@ const SceneOverlay = dynamic(
   { ssr: false }
 );
 
+const SingularityOverlay = dynamic(
+  () =>
+    import("@/components/ui/SingularityOverlay").then((mod) => ({
+      default: mod.SingularityOverlay,
+    })),
+  { ssr: false }
+);
+
 export default function Home() {
   return (
     <main className="relative w-full h-screen overflow-hidden" id="landing-page">
@@ -48,6 +56,7 @@ export default function Home() {
       <Experience />
 
       {/* DOM Overlay Layer */}
+      <SingularityOverlay />
       <Navigation />
       <SceneOverlay />
     </main>

@@ -84,6 +84,12 @@ export function SceneManager() {
       });
     }
 
+    const isSingularityActive = useExperienceStore.getState().isSingularityActive;
+
+    // Prevent camera movement during the singularity cinematic sequence.
+    // This avoids the camera violently jumping to Z=50 when the scroll resets.
+    if (isSingularityActive) return;
+
     const scrollProgress = scroll.offset;
 
     // ─── Continuous Camera Z from keyframes ────────────────────
