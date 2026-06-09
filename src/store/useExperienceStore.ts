@@ -2,7 +2,8 @@
  * Event Horizon — Experience Store (Zustand)
  * ==========================================
  * Central state machine for the cinematic experience.
- * Updated for the new 8-phase cinematic timeline.
+ * Manages the global scroll progress, cinematic phases, and the
+ * single-source-of-truth timeline for the singularity transition.
  */
 
 import { create } from "zustand";
@@ -39,6 +40,10 @@ export const useExperienceStore = create<ExperienceState>()(
     isHelmetOn: true,
     dpr: 0.75,
     antialias: false,
+    isLooping: false,
+    singularityProgress: 0,
+    isSingularityActive: false,
+    shouldResetScroll: false,
 
     setScrollProgress: (v: number) => {
       const progress = clamp(v, 0, 1);
@@ -67,6 +72,14 @@ export const useExperienceStore = create<ExperienceState>()(
       }
     },
 
+    setPhase: (phase: Phase) => {
+      set({ phase });
+    },
+
+    setGravity: (v: number) => {
+      set({ gravity: v });
+    },
+
     setQualityTier: (tier: QualityTier) => {
       set({ qualityTier: tier });
     },
@@ -83,5 +96,8 @@ export const useExperienceStore = create<ExperienceState>()(
 
     setDpr: (v: number) => set({ dpr: v }),
     setAntialias: (v: boolean) => set({ antialias: v }),
+    setSingularityProgress: (v: number) => set({ singularityProgress: v }),
+    setIsSingularityActive: (v: boolean) => set({ isSingularityActive: v }),
+    setShouldResetScroll: (v: boolean) => set({ shouldResetScroll: v }),
   }))
 );

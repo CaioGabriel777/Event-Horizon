@@ -25,6 +25,7 @@ import { BlendFunction } from "postprocessing";
 import { Vector2 } from "three";
 
 import { SceneManager } from "./SceneManager";
+import { SingularityPass } from "./effects/Singularity";
 import { StarField } from "./objects/StarField";
 import { useExperienceStore } from "@/store/useExperienceStore";
 import { CAMERA, SCROLL, SHADER, PERFORMANCE } from "@/lib/constants";
@@ -32,6 +33,8 @@ import { Stats } from "@react-three/drei";
 import { HelmetHUD } from "../ui/HelmetHUD";
 
 // ─── Adaptive Post-Processing Pipeline ──────────────────────────────────────
+// NOTE: Disabled — Bloom + ChromaticAberration degrade nebula and black hole
+// colors. Kept here for future tuning.
 
 function PostProcessingPipeline() {
   const gravity = useExperienceStore((s) => s.gravity);
@@ -63,6 +66,8 @@ function PostProcessingPipeline() {
   );
 }
 
+
+
 // ─── Loading Fallback ───────────────────────────────────────────────────────
 
 function LoadingFallback() {
@@ -83,8 +88,8 @@ export function Experience() {
   const isReady = useExperienceStore((s) => s.isReady);
 
   return (
-    <div 
-      className="fixed inset-0 w-full h-full" 
+    <div
+      className="fixed inset-0 w-full h-full"
       id="experience-canvas"
       style={{ opacity: isReady ? 1 : 0, transition: 'opacity 0.3s ease' }}
     >
@@ -125,6 +130,7 @@ export function Experience() {
         </Suspense>
 
         {/* <PostProcessingPipeline /> */}
+        <SingularityPass />
       </Canvas>
     </div>
   );

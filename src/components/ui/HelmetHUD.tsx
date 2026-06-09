@@ -58,11 +58,30 @@ export function HelmetHUD() {
   const isHelmetOn = useExperienceStore((s) => s.isHelmetOn);
   const gravity = useExperienceStore((s) => s.gravity);
   const phase = useExperienceStore((s) => s.phase);
-
+  const isWhiteout = useExperienceStore((s) => s.isWhiteout);
   const isSingularity = phase === "singularity";
   const isEventHorizon = phase === "event-horizon";
   const isDanger = isSingularity || isEventHorizon;
   const shellVariant = useShellVariant(phase, isSingularity);
+
+  const whiteoutStart = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (isWhiteout) {
+      whiteoutStart.current = Date.now();
+    } else {
+      whiteoutStart.current = null;
+    }
+  }, [isWhiteout]);
+
+  useEffect(() => {
+    if (!isWhiteout) return;
+    const timer = setTimeout(() => {
+      console.warn("[Whiteout] circuit breaker ativado — forçando release");
+      useExperienceStore.getState().setIsWhiteout(false);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [isWhiteout]);
 
   // Phase Information
   const hudPhases = PHASES.slice(2); // Skip home and awakening for HUD count
@@ -176,8 +195,11 @@ export function HelmetHUD() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <AnimatePresence>
-      {isHelmetOn && (
+    <>
+
+
+      <AnimatePresence>
+        {isHelmetOn && (
         <motion.div
           key="helmet"
           initial={{ opacity: 0, scale: 1.05 }}
@@ -472,5 +494,6 @@ export function HelmetHUD() {
         </motion.div>
       )}
     </AnimatePresence>
+    </>
   );
 }

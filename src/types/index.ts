@@ -41,14 +41,29 @@ export interface ExperienceState {
   isHelmetOn: boolean;          // True when the astronaut helmet overlay is active
   dpr: number;
   antialias: boolean;
+  isLooping: boolean;
+  /** Timeline progress (0.0 to 1.0) of the singularity cinematic sequence */
+  singularityProgress: number;  
+  
+  /** True when the singularity cinematic is currently running, locking the scroll */
+  isSingularityActive: boolean;
+  
+  /** Signal flag set by SingularityPass to instruct useScrollPhase to synchronously reset the DOM scroll */
+  shouldResetScroll: boolean;
 
   // Actions
   setScrollProgress: (v: number) => void;
+  setPhase: (v: Phase) => void;
+  setGravity: (v: number) => void;
   setQualityTier: (tier: QualityTier) => void;
   setReady: () => void;
   setIsHelmetOn: (v: boolean | ((prev: boolean) => boolean)) => void;
   setDpr: (v: number) => void;
   setAntialias: (v: boolean) => void;
+  setIsLooping: (v: boolean) => void;
+  setSingularityProgress: (v: number) => void;
+  setIsSingularityActive: (v: boolean) => void;
+  setShouldResetScroll: (v: boolean) => void;
 }
 
 /** Performance metrics for the tech dashboard */

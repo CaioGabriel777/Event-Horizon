@@ -32,6 +32,7 @@ import { ApproachScene } from "./scenes/ApproachScene";
 import { EventHorizonScene } from "./scenes/EventHorizonScene";
 import { SingularityScene } from "./scenes/SingularityScene";
 import { BlackHole } from "./objects/BlackHole";
+import { StarStreaks } from "./effects/StarStreaks";
 
 const BH_Z = -20;
 
@@ -83,12 +84,28 @@ export function SceneManager() {
       });
     }
 
+    const isSingularityActive = useExperienceStore.getState().isSingularityActive;
+
+    // Prevent camera movement during the singularity cinematic sequence.
+    // This avoids the camera violently jumping to Z=50 when the scroll resets.
+    if (isSingularityActive) return;
+
     const scrollProgress = scroll.offset;
 
     // ─── Continuous Camera Z from keyframes ────────────────────
     const targetZ = getCameraZ(scrollProgress);
     camera.position.x = damp(camera.position.x, 0, 3, delta);
     camera.position.y = damp(camera.position.y, 0, 3, delta);
+
+    if (useExperienceStore.getState().isLooping) {
+      console.log("[DEBUG LOOP] SceneManager Frame:", {
+        scrollOffset: scrollProgress,
+        storeScrollProgress: useExperienceStore.getState().scrollProgress,
+        gravity: useExperienceStore.getState().gravity,
+        cameraZ: camera.position.z,
+        targetZ: targetZ
+      });
+    }
 
     // Singularity gets faster damping for suck-in effect
     const isSingularity = phase === "singularity";
@@ -127,6 +144,7 @@ export function SceneManager() {
       <ApproachScene active={!isReady || bhActive} />
       <EventHorizonScene active={!isReady || phase === "event-horizon"} />
       <SingularityScene active={!isReady || phase === "singularity"} />
+      <StarStreaks />
     </group>
   );
 }
