@@ -11,8 +11,10 @@
  * Phase 3 - REVELATION(0.40→0.60)  Nebula fades, BH appears
  * Phase 4 - DISCOVERY  (0.60→0.72) BH visible, scientific text
  * Phase 5 - APPROACH   (0.72→0.82) Close to BH, gravity takes hold
- * Phase 6 - EVENT HOR. (0.82→0.90) Point of no return
- * Phase 7 - SINGULARITY(0.90→1.00) Suck-in, blackout, reset
+ * Phase 6 - EVENT HOR. (0.82→0.90) Point of no return — SCROLL LOCKS,
+ *                                  the 12s cinematic orbit takes over
+ * Phase 7 - SINGULARITY(timer)     Triggered by orbit completion:
+ *                                  4-act collapse, blackout, reset
  * ─────────────────────────────────────────────────────────
  */
 
@@ -113,9 +115,50 @@ export const CAMERA_KEYFRAMES = [
   { scroll: 0.60, z: 15 },   // Revelation: nebula fading
   { scroll: 0.72, z: 10 },   // Discovery
   { scroll: 0.82, z: 5 },    // Approach
-  { scroll: 0.90, z: 1 },    // Event Horizon
-  { scroll: 1.00, z: -18 },  // Singularity
+  { scroll: 0.90, z: 1 },    // Event Horizon (orbit engages here)
+  { scroll: 1.00, z: -18 },  // Singularity (unreachable via scroll — orbit owns it)
 ] as const;
+
+// ─── Orbital Approach (Event Horizon cinematic) ─────────────────────────────
+/**
+ * Configuration for the automatic camera orbit around the black hole.
+ * Consumed exclusively by useOrbitCamera. All values are tunable —
+ * the orbital path is fully derived from these constants.
+ *
+ * Geometry reference (shader units, BH at world (0, 0, -20)):
+ *   Schwarzschild radius = 1.0 | disk inner = 3.0 | disk outer = 12.0
+ */
+export const ORBIT = {
+  /** Total cinematic orbit duration in seconds */
+  durationSec: 12,
+  /** Full revolutions around the black hole (1.35 ≈ 486° of sweep) */
+  revolutions: 1.35,
+  /**
+   * Starting orbital radius in world units. 21 = |camera Z=1 minus
+   * BH Z=-20| — seamless hand-off from the scroll camera's final position.
+   */
+  startRadius: 21,
+  /**
+   * Final orbital radius before the singularity dive. 7.5 places the
+   * camera INSIDE the disk's outer annulus (3 < 7.5 < 12) — the
+   * Interstellar-style fly-over above the accretion disk.
+   */
+  endRadius: 7.5,
+  /** Peak vertical excursion above/below the disk plane */
+  heightAmplitude: 6.5,
+  /**
+   * Sine cycles for the vertical path. 0.75 = rise above the disk,
+   * cross the plane edge-on (~t 0.66, the disk becomes a blade of
+   * light), then dip below it.
+   */
+  heightCycles: 0.75,
+  /** Camera height converged to before the singularity hand-off */
+  finalHeight: 0.8,
+  /** Progress fraction where the height starts settling to finalHeight */
+  settleStart: 0.85,
+  /** Progress fraction used to blend in from the scroll camera position */
+  blendInWindow: 0.08,
+} as const;
 
 // ─── Performance ────────────────────────────────────────────────────────────
 export const PERFORMANCE = {
@@ -149,7 +192,16 @@ export const CAMERA = {
   fov: 75,
   near: 0.1,
   far: 1000,
-  initialPosition: [0, 0, 50] as [number, number, number],
+  /**
+   * Physical camera height above the accretion disk plane.
+   * Replaces the old 5° pitch tilt that was hardcoded inside the black
+   * hole fragment shader — the shader is now 100% driven by the real
+   * camera matrix. At ~25 world units from the BH this yields the same
+   * ≈5° viewing angle as the removed tilt, and the angle naturally
+   * deepens as the camera approaches (physically correct).
+   */
+  baseHeight: 2.5,
+  initialPosition: [0, 2.5, 50] as [number, number, number],
 } as const;
 
 // ─── Scroll ─────────────────────────────────────────────────────────────────

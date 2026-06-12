@@ -2,8 +2,16 @@
  * useScrollPhase — Scroll Control and Reset Bridge
  * =================================================
  * Connects the Drei ScrollControls with the central ExperienceStore.
- * Responsible for locking the scroll overflow during the singularity 
- * cinematic sequence and performing synchronous scroll resets when triggered.
+ * Responsible for locking the scroll overflow during the cinematic
+ * sequences (orbital approach + singularity collapse) and performing
+ * synchronous scroll resets when triggered.
+ *
+ * CINEMATIC LOCK: from the moment the orbit engages (event-horizon
+ * phase) until the singularity timeline completes, the scroll element
+ * is physically locked — the user has crossed the point of no return.
+ * While locked, scrollProgress/phase derivation is suspended, so the
+ * manual setPhase/setGravity calls from the cinematic controllers are
+ * never overwritten by the scroll resolver.
  */
 
 "use client";
@@ -27,8 +35,10 @@ export function useScrollPhase() {
       return;
     }
 
-    // Lock scrolling during the cinematic sequence
-    if (state.isSingularityActive) {
+    // Lock scrolling during the cinematic sequences.
+    // isOrbitActive:       event-horizon orbital approach (point of no return)
+    // isSingularityActive: 4-act collapse + blackout reset window
+    if (state.isOrbitActive || state.isSingularityActive) {
       scroll.el.style.overflow = 'hidden';
       return;
     }

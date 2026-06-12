@@ -19,6 +19,15 @@
  *   for the vast background disk (b >= 3.2). A smooth blend zone
  *   (b ∈ [2.8, 3.2]) prevents visible seams between the two engines.
  *
+ * ORBITAL CAMERA SUPPORT:
+ *   The camera basis arrives via uniforms from the real Three.js camera
+ *   (world space). The impact parameter `b` is computed via TRUE 3D
+ *   closest-approach geometry — valid for any camera orientation,
+ *   including the cinematic orbit. The host component force-disables
+ *   the LUT (uUseLUT = 0) while the orbital/singularity sequences run,
+ *   because the 2D LUT was "photographed" from the fixed frontal camera
+ *   and is geometrically invalid from any other angle.
+ *
  * Compositing (LUT path only):
  *   The disk is split into FRONT (diskSin > 0, camera-side) and BACK
  *   (diskSin < 0, far-side) layers. The event horizon shadow occludes
@@ -40,10 +49,17 @@ uniform float uScrollProgress;
 uniform sampler2D uGeodesicLUT;
 uniform float uUseLUT;
 
+uniform vec3  uCameraPos;
+uniform vec3  uCameraRight;
+uniform vec3  uCameraUp;
+uniform vec3  uCameraForward;
+uniform float uAspect;
+uniform int   uMaxSteps;
+uniform int   uFbmOctaves;
+
 const float SCHWARZSCHILD_R = 1.0;
 const float DISK_INNER = 3.0;
 const float DISK_OUTER = 12.0;
-const int   MAX_STEPS = 80;
 const float PI = 3.14159265359;
 const float TAU = 6.28318530718;
 
@@ -92,6 +108,11 @@ float fbm(vec2 p, int octaves) {
     return v;
 }
 
+/** FBM variant using the GPU-profile-driven octave count */
+float fbmAdaptive(vec2 p) {
+    return fbm(p, uFbmOctaves);
+}
+
 // ─── Blackbody ──────────────────────────────────────────────────────────────
 // Pure deep reds at the cold end — no gray or soot tones.
 
@@ -112,13 +133,21 @@ vec3 blackbody(float t) {
 // ─── Geodesic RK4 ───────────────────────────────────────────────────────────
 // Hardware-accelerated inversesqrt replaces expensive sqrt + division.
 
+/**
+ * geodesicAcceleration — World Space
+ * ====================================
+ * Computes gravitational ray deflection relative to uBlackHolePos.
+ * pos: ray position in world space
+ * vel: ray direction (normalized)
+ */
 vec3 geodesicAcceleration(vec3 pos, vec3 vel) {
-    float r2 = dot(pos, pos);
-    float invR = inversesqrt(r2);
-    float invR5 = invR * invR * invR * invR * invR;
-    vec3 h = cross(pos, vel);
-    float h2 = dot(h, h);
-    return -1.5 * SCHWARZSCHILD_R * h2 * pos * invR5;
+  vec3 r = pos - uBlackHolePos; // vector relative to the black hole
+  float r2 = dot(r, r);
+  float invR = inversesqrt(r2);
+  float invR5 = invR * invR * invR * invR * invR;
+  vec3 h = cross(r, vel);
+  float h2 = dot(h, h);
+  return -1.5 * SCHWARZSCHILD_R * h2 * r * invR5;
 }
 
 void stepRK4(inout vec3 pos, inout vec3 vel, float dt) {
@@ -165,12 +194,12 @@ vec4 sampleDiskAtAngle(float r, float angle, float diskSDF) {
     vec2 rotA = rot * posA;
     vec2 rotB = rot * posB;
 
-    float turbA = fbm(rotA * 0.6, 3);
-    float turbB = fbm(rotB * 0.6 + 50.0, 3);
+    float turbA = fbmAdaptive(rotA * 0.6);
+    float turbB = fbmAdaptive(rotB * 0.6 + 50.0);
     float turb = mix(turbA, turbB, 0.5);
 
-    float detailA = fbm(rotA * 1.5 - uTime * 0.1, 2);
-    float detailB = fbm(rotB * 1.5 + 50.0 - uTime * 0.1, 2);
+    float detailA = fbmAdaptive(rotA * 1.5 - uTime * 0.1);
+    float detailB = fbmAdaptive(rotB * 1.5 + 50.0 - uTime * 0.1);
     float detail = mix(detailA, detailB, 0.5);
 
     // Gas cloud density from FBM
@@ -212,32 +241,75 @@ struct CameraRay {
     vec3 dir;
 };
 
+/**
+ * setupCamera — World Space Ray Construction
+ * ===========================================
+ * Constructs a ray from the real Three.js camera position and orientation.
+ * uv: fragment UV (0..1). Uses uAspect to correct non-square viewports.
+ * Returns a CameraRay with pos in world space and normalized dir.
+ *
+ * NOTE: The old 5° pitch tilt that lived here has been removed. The
+ * equivalent viewpoint is now achieved PHYSICALLY by SceneManager
+ * raising the camera to CAMERA.baseHeight above the disk plane —
+ * the shader is 100% driven by the real camera matrix.
+ */
 CameraRay setupCamera(vec2 uv) {
-    float camDist = 40.0;
-    float camHeight = 3.5;
-    vec3 camPos = vec3(0.0, camHeight, camDist);
-    vec3 fwd = normalize(-camPos);
-    vec3 right = normalize(cross(fwd, vec3(0.0, 1.0, 0.0)));
-    vec3 up = cross(right, fwd);
+  vec2 ndc = (uv - 0.5) * 2.0;
+  ndc.x *= uAspect;
+  float halfFov = tan(uFov * 0.5);
 
-    vec2 screenUV = (uv - 0.5) * 2.0;
-    float fov = tan(uFov * 0.5);
-    vec3 rd = normalize(fwd + screenUV.x * fov * right + screenUV.y * fov * up);
-    return CameraRay(camPos, rd);
+  vec3 rayDir = normalize(
+    uCameraForward +
+    uCameraRight   * ndc.x * halfFov +
+    uCameraUp      * ndc.y * halfFov
+  );
+
+  return CameraRay(uCameraPos, rayDir);
+}
+
+/**
+ * closestApproach — 3D ray/black-hole geometry (World Space)
+ * ============================================================
+ * Computes the impact parameter (b) and the perpendicular offset vector
+ * at the ray's closest approach to the black hole center.
+ * Valid for ANY camera orientation — orbital, polar, equatorial.
+ *
+ * When the closest approach lies BEHIND the ray origin (tC <= 0, i.e.
+ * the black hole is behind the camera for this ray), b falls back to
+ * the current camera distance. This prevents false coronas and horizon
+ * shadows from appearing in the direction OPPOSITE the black hole
+ * during close orbital passes.
+ *
+ * Replaces the old planar-intersection b (tZ = -Δz / dir.z), which
+ * divided by cam.dir.z and exploded when the orbital camera looked
+ * perpendicular to the Z axis.
+ */
+float closestApproach(vec3 rayOrigin, vec3 rayDir, out vec3 perpOut) {
+    vec3 oc = rayOrigin - uBlackHolePos;
+    float tC = -dot(oc, rayDir);
+    perpOut = oc + rayDir * tC;
+    return (tC > 0.0) ? length(perpOut) : length(oc);
 }
 
 // ─── LUT Path ──────────────────────────────────────────────────────────────
 // Clean front/back compositing. No ghost suppression masks — the hybrid
 // routing in main() ensures this function is never called near B_CRITICAL.
+//
+// NOTE: This path intentionally keeps the PLANAR (focal-plane) b/theta
+// computation below — the Rust LUT was baked against exactly this
+// screen-polar parameterization for the frontal scroll camera. The host
+// component guarantees this path never runs with an orbital camera
+// (uUseLUT is forced to 0 during cinematic sequences).
 
 vec4 renderWithLUT(vec2 uv) {
     CameraRay cam = setupCamera(uv);
 
-    float tZ = -cam.pos.z / cam.dir.z;
+    // Theta: Screen-Polar Angle (LUT-specific parameterization)
+    float tZ = -(cam.pos.z - uBlackHolePos.z) / cam.dir.z;
     vec3 target = cam.pos + cam.dir * tZ;
-
-    float b = length(target.xy);
-    float theta = atan(target.y, target.x);
+    vec3 relTarget = target - uBlackHolePos;
+    float b = length(relTarget.xy);
+    float theta = atan(relTarget.y, relTarget.x);
     if (theta < 0.0) theta += TAU;
 
     float lutU = clamp((b - LUT_B_MIN) / LUT_B_RANGE, 0.0, 1.0);
@@ -285,62 +357,85 @@ vec4 renderWithLUT(vec2 uv) {
 
 // ─── RK4 Path ──────────────────────────────────────────────────────────────
 // Mathematically flawless ray marching — no LUT interpolation artifacts.
-// Used for the core region (b < 3.2) where the LUT is corrupted.
+// Used for the core region (b < 3.2) in hybrid mode, and for the ENTIRE
+// frame during the orbital approach and singularity sequences.
 
 vec4 renderWithRK4(vec2 uv) {
-    CameraRay cam = setupCamera(uv);
-    vec3 pos = cam.pos;
-    vec3 vel = cam.dir;
+  CameraRay cam = setupCamera(uv);
+  vec3 pos = cam.pos;
+  vec3 vel = cam.dir;
 
-    vec3 accColor = vec3(0.0);
-    float accAlpha = 0.0;
-    float baseStep = 0.5;
+  vec3 accColor = vec3(0.0);
+  float accAlpha = 0.0;
+  float baseStep = 0.5;
 
-    for (int i = 0; i < MAX_STEPS; i++) {
-        float r = length(pos);
-        if (r < SCHWARZSCHILD_R) {
-            accAlpha = 1.0;
-            break;
-        }
+  for (int i = 0; i < 120; i++) {
+    if (i >= uMaxSteps) break;
 
-        float dt = baseStep * clamp(r * 0.15, 0.08, 1.5);
-        float prevY = pos.y;
-        stepRK4(pos, vel, dt);
-        float currY = pos.y;
+    // Distance to the black hole in world space
+    vec3 rVec = pos - uBlackHolePos;
+    float r = length(rVec);
 
-        if (prevY * currY < 0.0) {
-            float t = abs(prevY) / (abs(prevY) + abs(currY) + 0.0001);
-            vec3 hitPos = mix(pos - vel * dt, pos, t);
-            float hitR = length(hitPos.xz);
-            float angle = atan(hitPos.z, hitPos.x);
-            float sdf = min(hitR - DISK_INNER, DISK_OUTER - hitR);
-
-            vec4 diskSample = sampleDiskAtAngle(hitR, angle, sdf);
-            if (diskSample.a > 0.001) {
-                float redshift = sqrt(max(1.0 - SCHWARZSCHILD_R / hitR, 0.0));
-                accColor += diskSample.rgb * redshift * (1.0 - accAlpha);
-                accAlpha += diskSample.a * redshift * (1.0 - accAlpha);
-            }
-        }
-
-        if (accAlpha > 0.95) break;
-        float newR = length(pos);
-        if (newR > 45.0) break;
-        if (newR > 25.0 && length(pos + vel * dt) > newR && accAlpha < 0.01) break;
+    if (r < SCHWARZSCHILD_R) {
+      accAlpha = 1.0;
+      break;
     }
 
-    return vec4(accColor, accAlpha);
+    // Adaptive step size: larger steps far from disk plane, refined near crossing
+    float distToPlane = abs(pos.y - uBlackHolePos.y);
+    float planeRefine = clamp(distToPlane * 0.5, 0.3, 1.0);
+    float dt = baseStep * clamp(r * 0.15, 0.08, 1.5) * (2.0 - planeRefine);
+    float prevY = pos.y - uBlackHolePos.y; // Y relative to the BH
+    stepRK4(pos, vel, dt);
+    float currY = pos.y - uBlackHolePos.y;
+
+    // Equatorial plane crossing of the black hole
+    if (prevY * currY < 0.0) {
+      float t = abs(prevY) / (abs(prevY) + abs(currY) + 0.0001);
+      vec3 hitPos = mix(pos - vel * dt, pos, t);
+      // Position relative to the black hole for disk sampling
+      vec3 hitLocal = hitPos - uBlackHolePos;
+      float hitR = length(hitLocal.xz); // radius in the disk plane
+      float angle = atan(hitLocal.z, hitLocal.x);
+      float sdf = min(hitR - DISK_INNER, DISK_OUTER - hitR);
+
+      vec4 diskSample = sampleDiskAtAngle(hitR, angle, sdf);
+      if (diskSample.a > 0.001) {
+        float redshift = sqrt(max(1.0 - SCHWARZSCHILD_R / max(hitR, SCHWARZSCHILD_R), 0.0));
+        accColor += diskSample.rgb * redshift * (1.0 - accAlpha);
+        accAlpha += diskSample.a * redshift * (1.0 - accAlpha);
+      }
+    }
+
+    if (accAlpha > 0.95) break;
+    float newR = length(pos - uBlackHolePos);
+    if (newR > 45.0) break;
+  }
+
+  return vec4(accColor, accAlpha);
 }
 
 // ─── Main ───────────────────────────────────────────────────────────────────
 // Hybrid routing: RK4 for the core, LUT for the background disk.
 // Smooth blend zone (b ∈ [2.8, 3.2]) prevents visible seams.
+//
+// Routing and corona geometry use the TRUE 3D closest-approach impact
+// parameter — orientation-independent, so the orbital camera renders
+// correct lensing from every angle. With the frontal scroll camera the
+// 3D and planar computations are numerically equivalent (zero visual
+// regression on the existing phases).
 
 void main() {
     CameraRay cam = setupCamera(vUv);
-    float tZ = -cam.pos.z / cam.dir.z;
-    vec3 target = cam.pos + cam.dir * tZ;
-    float b = length(target.xy);
+
+    // ─── 3D closest-approach geometry ────────────────────────────────
+    // b:     impact parameter — minimum ray distance to the BH center.
+    // perp:  perpendicular offset vector at closest approach; its XY
+    //        components provide a continuous polar angle for the
+    //        corona's filamentary texture in any camera orientation.
+    vec3 perp;
+    float b = closestApproach(cam.pos, cam.dir, perp);
+    float theta = atan(perp.y, perp.x);
 
     vec4 result;
 
@@ -368,11 +463,12 @@ void main() {
     // and the inner edge of the accretion disk (b ≈ DISK_INNER = 3.0)
     // with a turbulent, fiery gas corona — the lensed photon ring.
     //
-    // Uses the analytic impact parameter 'b' and ray angle 'theta'
-    // (both already computed for hybrid routing), NOT screen-space UV.
-    // This ensures the corona scales correctly with camera zoom/FOV
-    // and remains locked to the 3D black hole at all distances.
-    float theta = atan(target.y, target.x);
+    // Uses the 3D impact parameter 'b' and the closest-approach polar
+    // angle 'theta'. Both are world-space and orientation-independent,
+    // so the corona stays locked to the black hole at every distance
+    // AND every orbital angle. The closestApproach() fallback (b =
+    // camera distance when the BH is behind the ray) guarantees no
+    // false corona ring ever appears opposite the black hole.
 
     // Corona band: from just outside the shadow to the disk inner edge.
     float coronaInner = B_CRITICAL;
@@ -409,7 +505,8 @@ void main() {
         accAlpha = clamp(accAlpha + coronaIntensity * coronaGate * 0.6, 0.0, 1.0);
     }
 
-    float masterOpacity = smoothstep(0.25, 0.38, uScrollProgress);
+    // Fade in at the start of traversal (0.15) so BH is fully visible by revelation (0.40)
+    float masterOpacity = smoothstep(0.15, 0.30, uScrollProgress);
     float alpha = clamp(accAlpha, 0.0, 1.0) * masterOpacity;
 
     gl_FragColor = vec4(accColor, alpha);

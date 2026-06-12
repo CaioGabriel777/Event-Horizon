@@ -6,12 +6,18 @@
  * as the sole source of truth to drive a 4-act cinematic sequence.
  * 
  * Act 1: Relativistic beaming and chromatic aberration
- * Act 2: Radial stretch, speed lines, and extreme FOV stretching
- * Act 3: Progressive bottom-to-top vignette dissolution into black
+ * Act 2: Spaghettification (radial smear, redshift, dolly-zoom FOV)
+ * Act 3: Progressive event-horizon void swallowing the screen
  * Act 4: Smooth fade-in revealing the new universe
  *
+ * ENTRY (orbital hand-off): the sequence is now triggered by the
+ * useOrbitCamera hook, which sets phase='singularity' and gravity=1.0
+ * when the cinematic orbit completes. The `!isOrbitActive` guard below
+ * prevents a premature trigger if a violent scroll ever resolves the
+ * phase to 'singularity' while the orbit is still running.
+ *
  * It communicates with the scroll controller purely by signaling 
- * \`shouldResetScroll\` via the Zustand store, maintaining strict 
+ * `shouldResetScroll` via the Zustand store, maintaining strict 
  * separation of concerns between DOM manipulation and GPU rendering.
  */
 
@@ -180,10 +186,16 @@ export function SingularityPass() {
     const state = useExperienceStore.getState();
 
     // ─── Entry Detection ──────────────────────────────────────────────
-    // Triggers only if not running and singularity phase is reached
+    // Normal entry: useOrbitCamera completes its 12s approach and sets
+    // phase='singularity' + gravity=1.0 — this condition fires on the
+    // very same frame (this callback runs at priority 1, after the
+    // orbit's priority-0 callback).
+    // The !isOrbitActive guard prevents premature entry if a violent
+    // scroll jump ever resolves phase='singularity' mid-orbit.
     if (
       state.phase === 'singularity' &&
       state.gravity >= 0.92 &&
+      !state.isOrbitActive &&
       !isRunning.current &&
       !hasReset.current  // Prevents re-entry during the current cycle
     ) {
@@ -191,6 +203,7 @@ export function SingularityPass() {
       hasReset.current = false;
       timerRef.current = 0;
       useExperienceStore.getState().setIsSingularityActive(true);
+      console.log("[Singularity] Sequence engaged — 4-act collapse timeline started");
     }
 
     // ─── Inactive Path ────────────────────────────────────────────────

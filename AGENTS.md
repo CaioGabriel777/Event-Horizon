@@ -12,41 +12,42 @@ Welcome, AI Agent! This document outlines the project architecture, directory st
 
 ## 🏗️ Technical Architecture & Hybrid Engine
 
-Event Horizon is an immersive, physically-based WebGL ray-marching simulation of a Schwarzschild black hole. To achieve a locked 60 FPS in the browser with maximum physical fidelity, it uses a **Runtime Hybrid Spatial Engine (WASM + WebGL)**:
+Event Horizon is an immersive, physically-based WebGL ray-marching simulation of a Schwarzschild black hole. To achieve a locked 60 FPS in the browser with maximum physical fidelity across heterogeneous devices (from dedicated GPUs to integrated graphics), it uses a **Layered Hybrid Spatial Engine (FBO + WASM + WebGL)**:
 
 ```mermaid
 graph TD
     A[Rust Geodesic Solver] -- wasm-pack --> B[WASM Module]
     B --> C[Web Worker]
     C -- Background Thread --> D[Precomputed Geodesic LUT Texture]
-    D --> E[GLSL Fragment Shader]
-    F[Camera/Impact Parameter] --> E
+    D --> E[GLSL Fragment Shader (Offscreen Pass)]
+    F[Dynamic Resolution Scaler] --> E
     E --> H{Runtime Spatial Router}
-    H -- b < 2.8 --> I[High-Precision Real-Time RK4]
-    H -- b > 3.2 --> J[Ultra-Fast Bilinear LUT Lookup]
+    H -- Cinematic Orbit / b < 2.8 --> I[High-Precision Real-Time RK4]
+    H -- Frontal Camera & b > 3.2 --> J[Ultra-Fast Bilinear LUT Lookup]
     H -- 2.8 <= b <= 3.2 --> K[Smooth Linear Blend Zone]
-    I --> G[Depth-Correct Compositing & Volumetric Gas Rendering]
+    I --> G[FBO: Render Target]
     J --> G
     K --> G
+    G -- Bilinear Upscale --> L[Screen Composite Quad]
 ```
 
-1. **Rust / WASM (Offline / Initialization):**
-   - Calculates geodesic paths of photons under General Relativity using high-precision **Runge-Kutta 4th Order (RK4)** integration.
-   - Generates a **256x256 RGBA Float32Array Lookup Table (LUT)** containing seam-free trigonometric crossing parameters `(cos(angle), sin(angle), radius, sdf)`.
-2. **Web Worker (Concurrency):**
-   - Executes the heavy Rust WASM simulation in a background thread to prevent browser UI thread freezes.
-3. **GLSL Fragment Shader (Runtime Hybrid Spatial Engine):**
-   - **Dynamic Spatial Routing**: Direct bilinear texture lookups near the black hole silhouette (`b ≈ B_CRITICAL`) are corrupted by bilinear interpolation across the horizon's infinite discontinuity. To prevent gray halos, the shader routes pixels inside `b < 2.8` to run a flawless real-time, hardware-optimized RK4 integrator loop. Outer pixels (`b > 3.2`) sample the ultra-fast precomputed LUT. A transition zone (`b ∈ [2.8, 3.2]`) blends both seamlessly.
-   - **Volumetric Gas Aesthetics**: The accretion disk utilizes multi-octave FBM polar noise for gas cloud density patterns, with **decoupled physical opacity** (dimmed gas keeps a robust alpha to correctly occlude background stars/disk layers).
-   - **Fiery Inner Corona**: A post-process, perspective-correct filamentary gas ring is generated using the analytic impact parameter `b` and lensed ray angle `theta`, blending seamlessly behind the foreground disk via a strict `(1.0 - accAlpha)` depth gate.
-   - **Compositing**: Accretion disk elements are split into front/back layers via `diskSin`. The event horizon `captureMask` occludes ONLY the back layer, with the front layer alpha-compositing on top for the iconic "Gargantua" look.
-   - **Initial Fallback**: If the WASM LUT has not loaded yet, the entire screen falls back to the real-time RK4 engine.
+### 1. The FBO Performance Layer
+Raymarching a black hole at native 1080p+ resolution is computationally impossible for integrated GPUs. The engine decouples the raymarch cost from the display resolution:
+- The Black Hole is raymarched into an **off-screen WebGLRenderTarget (FBO)** at a fractional resolution (e.g., `0.35x` for low-end GPUs).
+- A secondary full-screen quad samples this FBO using `premultipliedAlpha: true` and bilinear filtering. Because the accretion disk is gaseous, the upscale is visually imperceptible, but the performance gain is exponential (locked 60 FPS on Intel UHD 630).
 
-### 🌌 Volumetric Nebula Engine (Introduction Phase)
+### 2. Rust / WASM (Offline / Initialization)
+- Calculates geodesic paths of photons under General Relativity using high-precision **Runge-Kutta 4th Order (RK4)** integration.
+- Generates a **256x256 RGBA Float32Array Lookup Table (LUT)** containing seam-free trigonometric crossing parameters `(cos(angle), sin(angle), radius, sdf)`. Runs in a Web Worker to prevent UI thread blocking.
 
-- **Texture-Based Instancing**: To maintain a locked 60 FPS while rendering massive cosmic dust, the Nebula phase utilizes instanced billboarding (50 quads) mapped with a pre-rendered smoke texture instead of expensive purely procedural fragment noise.
-- **Organic UV Warping**: The fragment shader distorts the static texture coordinates using time and density-based sines/cosines to create organic fluid behavior, seamlessly merging the 50 instances into a single, cohesive gas cloud.
-- **Zero-Accumulation Architecture**: To prevent the classic "plastic wall" artifact caused by intense additive blending, the shader sculpts the smoke using a parabolic luminance curve. Thin smoke outputs `vec3(0.0)` (pure black) instead of low-alpha gray, ensuring that accumulating 50 transparent planes does not blow out into a solid white wall.
+### 3. GLSL Fragment Shader (Spatial Routing & Orbit)
+- **Frontal Approach**: When the camera moves linearly on the Z-axis, the shader uses a spatial hybrid model. The core (`b < 2.8`) runs a hardware-optimized RK4 integrator loop. The outer regions (`b > 3.2`) sample the ultra-fast LUT using focal-plane coordinates (`length(relTarget.xy)`).
+- **Cinematic Orbit Bypass**: The 2D LUT is only valid from a frontal perspective. When the user reaches the Event Horizon, the `useOrbitCamera` hook takes control, spiraling the camera around the black hole. During this phase, the shader forces `uUseLUT = 0.0`, falling back exclusively to the RK4 engine. Because the camera is close (all rays have `b < 3.2`), the performance cost remains identical, but allows for 360-degree physically accurate gravitational lensing.
+
+### 4. Cinematic Timeline & State Management
+- Managed via `useExperienceStore` (Zustand).
+- Phases: `home` → `awakening` → `traversal` → `revelation` → `discovery` → `approach` → `event-horizon` → `singularity`.
+- `SceneManager.tsx` handles scroll-driven camera interpolation and orchestrates the hand-off to the orbital and singularity cinematics.
 
 ---
 
@@ -54,12 +55,14 @@ graph TD
 
 - `rust/geodesic-lut/`: The Rust crate containing the geodesic equations and RK4 solvers.
   - `src/lib.rs`: Entry point containing the WASM bindings (`wasm-bindgen`).
-- `public/wasm/`: The compiled WASM module output (produced by `wasm-pack`). Do not edit files here directly.
+- `public/wasm/`: The compiled WASM module output. Do not edit files here directly.
 - `src/app/`: Next.js (App Router) pages, layouts, and global styles.
-  - `favicon.ico`: High-quality 48x48 icon cropped from `black_hole_v2.png`.
 - `src/components/`: React Three Fiber and UI components.
-- `src/shaders/`: GLSL shaders for WebGL ray-marching and post-processing.
-- `src/workers/`: Web Worker files responsible for spawning the WASM geodesic solver.
+  - `canvas/objects/BlackHole.tsx`: The core FBO dual-pass setup.
+  - `canvas/SceneManager.tsx`: Camera lifecycle ownership.
+- `src/shaders/`: GLSL shaders (`raw-loader`).
+- `src/hooks/`: Reusable hooks (`useOrbitCamera.ts`, `useScrollPhase.ts`).
+- `src/store/`: Zustand global state management.
 
 ---
 
@@ -68,7 +71,6 @@ graph TD
 We use **Docker & Docker Compose** for streamlined, multi-stage development and production environments.
 
 ### 🐳 Docker Configuration (Multi-Stage)
-The `Dockerfile` is split into several crucial stages to optimize build speed and image size:
 1. `wasm-builder` (Rust): Compiles the Rust geodesic solver into WASM.
 2. `base` (Node): Shared node dependencies installed via `npm ci`.
 3. `development` (Node): Dev target with **Hot Reload** enabled.
@@ -78,20 +80,14 @@ The `Dockerfile` is split into several crucial stages to optimize build speed an
 ### 💻 Developer Workflow Command Reference
 
 #### 1. Local Development (Docker-based - Recommended)
-To run the server locally with **Hot Reload (Fast Refresh)**:
 ```bash
 docker compose up -d --build
 ```
 - **Hot Reload Integration**: The project code is synchronized via volume mounting (`.:/app`).
-- **File System Watching**: Enabled via `WATCHPACK_POLLING=true` in `docker-compose.yml` to guarantee immediate updates on Windows (WSL) and macOS hosts.
-- Anonymous volumes protect `/app/node_modules`, `/app/.next`, and `/app/rust/geodesic-lut/target` from clashing with host-compiled folders.
 
 #### 2. Manual Local Development (Bare-metal)
-If running without Docker, the Rust toolchain with `wasm-pack` is required:
 ```bash
-# Build WASM
 npm run build:wasm
-# Start dev server
 npm run dev
 ```
 
@@ -100,22 +96,13 @@ npm run dev
 ## 📜 Coding Conventions & Guidelines for AI Agents
 
 ### 1. WebGL & Three.js Resource Management
-- **Memory Disposal**: Always dispose of Three.js objects (materials, geometries, textures, and render targets) in `useEffect` cleanup return functions to prevent browser tab crashes and memory leaks:
-  ```javascript
-  return () => {
-    material.dispose();
-    geometry.dispose();
-    texture.dispose();
-  };
-  ```
-- **GLSL Shaders**: Handle GLSL shaders in React Three Fiber by referencing custom shaders in `/src/shaders/`. Note that `next.config.ts` uses raw-loader for `.glsl`, `.vert`, and `.frag` extensions.
+- **Memory Disposal**: Always dispose of Three.js objects (materials, geometries, textures, and render targets) in `useEffect` cleanup return functions to prevent browser tab crashes and memory leaks.
+- **FBO Clears**: When using custom WebGLRenderTargets overlaying background elements, ensure clear color is transparent (`alpha=0`) and compositing materials use `premultipliedAlpha={true}`.
 
 ### 2. Next.js & React Rules
 - Follow Next.js App Router rules strictly.
 - Always use `"use client"` directive for components utilizing React Three Fiber, Framer Motion, hooks, or browser-only APIs.
-- Keep components small, modular, and focused.
 
-### 3. Open Source Standards
-- The project is licensed under the **MIT License** (stored in `LICENSE`). Respect all attribution requirements.
-- Maintain all code comments, docstrings, and architectural descriptions in **professional English**.
-- Do not check in build artifacts (such as local `.next/`, `node_modules/`, `rust/**/target/`, or local environments) into Git. Ensure they match `.dockerignore` and `.gitignore`.
+### 3. Documentation & Open Source Standards
+- **JSDoc Formatting**: Always write code documentation, function signatures, and component props using strict **JSDoc format in English**. Maintain all code comments, inline notes, and architectural descriptions exclusively in professional English.
+- The project is licensed under the **MIT License** (stored in `LICENSE`).
