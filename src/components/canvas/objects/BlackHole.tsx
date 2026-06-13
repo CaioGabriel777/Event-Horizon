@@ -144,6 +144,10 @@ export function BlackHole({
       uBlackHolePos: { value: new THREE.Vector3(0, 0, -20) },
       uMaxSteps: { value: 80 },
       uFbmOctaves: { value: 3 },
+      // DEBUG: set to 1.0 to see routing zones (RED=RK4, GREEN=LUT,
+      // YELLOW=blend, BLUE=where RK4 accumulated alpha). Set to 0.0 for
+      // normal rendering.
+      uDebugRouting: { value: 1.0 },
     }),
     [dummyTex]
   );

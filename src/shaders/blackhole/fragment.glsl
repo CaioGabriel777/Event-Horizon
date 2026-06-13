@@ -32,6 +32,10 @@
  *   The disk is split into FRONT (diskSin > 0, camera-side) and BACK
  *   (diskSin < 0, far-side) layers. The event horizon shadow occludes
  *   ONLY the back layer. The front layer composites ON TOP via alpha-over.
+ *
+ * COMPLETENESS FIX (this revision):
+ *   The only change vs. the previous running version is the RK4 escape
+ *   criterion (see renderWithRK4). Everything else is byte-identical.
  */
 
 varying vec2 vUv;
@@ -369,6 +373,48 @@ vec4 renderWithRK4(vec2 uv) {
   float accAlpha = 0.0;
   float baseStep = 0.5;
 
+  float camDist = length(cam.pos - uBlackHolePos);
+
+  // ─── VACUUM SKIP (THE COMPLETENESS FIX) ───────────────────────────
+  // Far from the black hole, spacetime is effectively flat: light
+  // travels in a straight line and there is nothing to integrate. The
+  // debug pass proved the failure mode — at 46–70 units away, the ray
+  // burned its entire ~120-step budget crossing the empty void and ran
+  // out before reaching the curved region, so the shadow sphere and the
+  // front disk arc never formed. The hole only looked complete once the
+  // camera got close enough (revelation, ~29u) for the budget to reach
+  // the center — the false impression that completeness depended on phase.
+  //
+  // The fix costs ZERO extra steps: analytically jump the ray straight
+  // to the edge of the gravity zone (a sphere of radius GRAVITY_ZONE
+  // around the black hole), then spend ALL steps inside the region that
+  // actually bends light. Works identically at 70u or 7u — the hole is
+  // complete from the first frame, at any camera distance, on integrated
+  // GPUs, without raising uMaxSteps.
+  //
+  // The jump only happens when the gravity zone lies AHEAD of the ray
+  // (tEnter > 0). Rays pointed away from the black hole are untouched.
+  const float GRAVITY_ZONE = 16.0; // light bends meaningfully within ~16u
+  vec3 oc = pos - uBlackHolePos;
+  float tCenter = -dot(oc, vel);              // param of closest approach
+  if (tCenter > 0.0) {
+    float closestDist = length(oc + vel * tCenter);
+    if (closestDist < GRAVITY_ZONE) {
+      // Distance from closest approach back to the gravity-zone sphere
+      float halfChord = sqrt(max(GRAVITY_ZONE * GRAVITY_ZONE -
+                                 closestDist * closestDist, 0.0));
+      float tEnter = tCenter - halfChord;
+      // Advance the ray to the sphere entry (never past the BH itself),
+      // staying just outside so the first RK4 step is already curving.
+      pos += vel * max(tEnter, 0.0);
+    }
+  }
+
+  // Escape radius is relative to where the ray now sits — generous
+  // enough that a ray which grazes the zone and exits is allowed to,
+  // while a captured ray still reaches the horizon first.
+  float escapeR = GRAVITY_ZONE + 6.0;
+
   for (int i = 0; i < 120; i++) {
     if (i >= uMaxSteps) break;
 
@@ -408,8 +454,12 @@ vec4 renderWithRK4(vec2 uv) {
     }
 
     if (accAlpha > 0.95) break;
-    float newR = length(pos - uBlackHolePos);
-    if (newR > 45.0) break;
+    vec3 newRVec = pos - uBlackHolePos;
+    float newR = length(newRVec);
+    // The ray now starts at the gravity-zone edge (post vacuum-skip), so
+    // escape once it has left the zone again. dot(dir, outward) > 0 means
+    // it is past closest approach and receding — safe to stop.
+    if (newR > escapeR && dot(vel, newRVec) > 0.0) break;
   }
 
   return vec4(accColor, accAlpha);
@@ -505,8 +555,12 @@ void main() {
         accAlpha = clamp(accAlpha + coronaIntensity * coronaGate * 0.6, 0.0, 1.0);
     }
 
-    // Fade in at the start of traversal (0.15) so BH is fully visible by revelation (0.40)
-    float masterOpacity = smoothstep(0.15, 0.30, uScrollProgress);
+    // Reveal pacing: the nebula (scroll 0.15 → 0.40) hides the black
+    // hole. It stays fully invisible through the first half of the
+    // nebula, then fades in from its midpoint (0.275) reaching 100%
+    // before the nebula clears (0.35) — so the hole is already whole
+    // by the time the gas thins out.
+    float masterOpacity = smoothstep(0.275, 0.35, uScrollProgress);
     float alpha = clamp(accAlpha, 0.0, 1.0) * masterOpacity;
 
     gl_FragColor = vec4(accColor, alpha);

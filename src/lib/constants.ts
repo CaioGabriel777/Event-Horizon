@@ -107,15 +107,22 @@ export const PHASES: readonly PhaseConfig[] = [
 ] as const;
 
 // ─── Camera Z Keyframes (for continuous interpolation) ──────────────────────
-// Maps scroll progress → camera Z position using linear segments
+// Maps scroll progress → camera Z position using linear segments.
+//
+// REVEAL DISTANCE (balanced): the black hole sits at Z=-20. These
+// keyframes keep it far enough to feel like a distant reveal yet close
+// enough to render with full presence the moment the nebula clears.
+// (The previous pass over-corrected to Z=2/0/-2, which made the hole
+// huge mid-nebula and forced a severe look-down angle. These moderate
+// values sit between that and the original distant set.)
 export const CAMERA_KEYFRAMES = [
   { scroll: 0.00, z: 50 },   // Home: still
   { scroll: 0.15, z: 50 },   // Awakening: still (blur clearing)
-  { scroll: 0.40, z: 28 },   // Traversal: through nebula
-  { scroll: 0.60, z: 15 },   // Revelation: nebula fading
-  { scroll: 0.72, z: 10 },   // Discovery
-  { scroll: 0.82, z: 5 },    // Approach
-  { scroll: 0.90, z: 1 },    // Event Horizon (orbit engages here)
+  { scroll: 0.40, z: 26 },   // Traversal: through nebula (BH still distant)
+  { scroll: 0.60, z: 9 },    // Revelation: BH has full presence on reveal
+  { scroll: 0.72, z: 4 },    // Discovery
+  { scroll: 0.82, z: 1 },    // Approach
+  { scroll: 0.90, z: -2 },   // Event Horizon (orbit engages here)
   { scroll: 1.00, z: -18 },  // Singularity (unreachable via scroll — orbit owns it)
 ] as const;
 
@@ -134,10 +141,11 @@ export const ORBIT = {
   /** Full revolutions around the black hole (1.35 ≈ 486° of sweep) */
   revolutions: 1.35,
   /**
-   * Starting orbital radius in world units. 21 = |camera Z=1 minus
-   * BH Z=-20| — seamless hand-off from the scroll camera's final position.
+   * Starting orbital radius in world units. 18 = |camera Z=-2 minus
+   * BH Z=-20| — seamless hand-off from the scroll camera's final
+   * position (CAMERA_KEYFRAMES event-horizon leg).
    */
-  startRadius: 21,
+  startRadius: 18,
   /**
    * Final orbital radius before the singularity dive. 7.5 places the
    * camera INSIDE the disk's outer annulus (3 < 7.5 < 12) — the
@@ -156,8 +164,13 @@ export const ORBIT = {
   finalHeight: 0.8,
   /** Progress fraction where the height starts settling to finalHeight */
   settleStart: 0.85,
-  /** Progress fraction used to blend in from the scroll camera position */
-  blendInWindow: 0.08,
+  /**
+   * Progress fraction used to blend BOTH position and orientation in
+   * from the scroll camera's final state. Widened from 0.08 to 0.15
+   * (≈1.8s) so the hand-off reads as a smooth acceleration into orbit
+   * rather than an abrupt cutscene cut.
+   */
+  blendInWindow: 0.15,
 } as const;
 
 // ─── Performance ────────────────────────────────────────────────────────────
