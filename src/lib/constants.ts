@@ -52,38 +52,38 @@ export const PHASES: readonly PhaseConfig[] = [
     id: "awakening",
     label: "Awakening",
     scrollStart: 0.0,
-    scrollEnd: 0.15,
+    scrollEnd: 0.12,
     gravity: 0.0,
     cameraZ: 50,       // Camera stays still during awakening
   },
   {
     id: "traversal",
     label: "Traversal",
-    scrollStart: 0.15,
-    scrollEnd: 0.40,
+    scrollStart: 0.12,
+    scrollEnd: 0.32,
     gravity: 0.0,
     cameraZ: 28,        // Camera advances through nebula
   },
   {
     id: "revelation",
     label: "Revelation",
-    scrollStart: 0.40,
-    scrollEnd: 0.60,
+    scrollStart: 0.32,
+    scrollEnd: 0.50,
     gravity: 0.05,
     cameraZ: 15,        // Nebula fading, BH appearing
   },
   {
     id: "discovery",
     label: "Discovery",
-    scrollStart: 0.60,
-    scrollEnd: 0.72,
+    scrollStart: 0.50,
+    scrollEnd: 0.66,
     gravity: 0.15,
     cameraZ: 10,
   },
   {
     id: "approach",
     label: "Approach",
-    scrollStart: 0.72,
+    scrollStart: 0.66,
     scrollEnd: 0.82,
     gravity: 0.6,
     cameraZ: 5,
@@ -106,25 +106,57 @@ export const PHASES: readonly PhaseConfig[] = [
   },
 ] as const;
 
-// ─── Camera Z Keyframes (for continuous interpolation) ──────────────────────
-// Maps scroll progress → camera Z position using linear segments.
+// ─── Disk geometry mirror (single source of truth for phase anchoring) ──────
+// These MUST match the shader constants in fragment.glsl. The camera
+// keyframes below are derived from DISK_OUTER so that changing the black
+// hole's size automatically repositions every phase to the correct
+// physical relationship with the disk — no manual keyframe tuning.
+export const BH_GEOMETRY = {
+  blackHoleZ: -20,
+  schwarzschildR: 3.5,
+  diskInner: 10.5,
+  diskOuter: 30.0,
+  bCapture: 9.1, // photon-capture radius = 3√3/2 × R
+} as const;
+
+// ─── Camera Z Keyframes (DISK-ANCHORED, auto-scaling) ───────────────────────
+// Each camera distance is expressed as a MULTIPLE of the disk's outer
+// radius, then converted to a world-space Z. This guarantees two things:
 //
-// REVEAL DISTANCE (balanced): the black hole sits at Z=-20. These
-// keyframes keep it far enough to feel like a distant reveal yet close
-// enough to render with full presence the moment the nebula clears.
-// (The previous pass over-corrected to Z=2/0/-2, which made the hole
-// huge mid-nebula and forced a severe look-down angle. These moderate
-// values sit between that and the original distant set.)
-export const CAMERA_KEYFRAMES = [
-  { scroll: 0.00, z: 50 },   // Home: still
-  { scroll: 0.15, z: 50 },   // Awakening: still (blur clearing)
-  { scroll: 0.40, z: 26 },   // Traversal: through nebula (BH still distant)
-  { scroll: 0.60, z: 9 },    // Revelation: BH has full presence on reveal
-  { scroll: 0.72, z: 4 },    // Discovery
-  { scroll: 0.82, z: 1 },    // Approach
-  { scroll: 0.90, z: -2 },   // Event Horizon (orbit engages here)
-  { scroll: 1.00, z: -18 },  // Singularity (unreachable via scroll — orbit owns it)
+//  1. SCALE INVARIANCE: if DISK_OUTER changes (e.g. a bigger black hole),
+//     every phase keeps its intended relationship to the disk — the
+//     "approach" leg always lands at the disk's outer edge, "event-horizon"
+//     always crosses into the gas, etc. No more re-tuning Z by hand.
+//
+//  2. MONOTONIC APPROACH: the multipliers strictly DECREASE, so the camera
+//     only ever moves toward the black hole. Scrolling always feels like
+//     advancing — fixing the "stuck / moving backward" sensation that the
+//     previous hand-tuned keyframes introduced in traversal.
+//
+// Phase → disk relationship (multiplier of DISK_OUTER):
+//   home/awaken : 3.2×  — far, static; the whole system sits in the void
+//   traversal   : 2.8×  — gentle approach through the thinning nebula
+//   revelation  : 2.2×  — the disk and shadow read clearly, still distant
+//   discovery   : 1.6×  — the structure opens up, lensing becomes obvious
+//   approach    : 1.15× — the shadow dominates, disk filling the frame
+//   event-horizon: 1.0× — camera reaches the disk's OUTER EDGE exactly.
+//                         dist == DISK_OUTER is the physical moment of
+//                         arrival at the accretion disk, so the orbit
+//                         engages here automatically — at ANY disk size.
+const DISK_DISTANCE_MULTIPLIERS = [
+  { scroll: 0.00, mult: 3.2 },
+  { scroll: 0.12, mult: 2.8 },
+  { scroll: 0.32, mult: 2.2 },
+  { scroll: 0.50, mult: 1.6 },
+  { scroll: 0.66, mult: 1.15 },
+  { scroll: 0.82, mult: 1.0 },
 ] as const;
+
+/** Camera keyframes derived from the disk geometry (see above). */
+export const CAMERA_KEYFRAMES = DISK_DISTANCE_MULTIPLIERS.map(({ scroll, mult }) => ({
+  scroll,
+  z: Math.round(BH_GEOMETRY.diskOuter * mult + BH_GEOMETRY.blackHoleZ),
+}));
 
 // ─── Orbital Approach (Event Horizon cinematic) ─────────────────────────────
 /**
@@ -133,7 +165,14 @@ export const CAMERA_KEYFRAMES = [
  * the orbital path is fully derived from these constants.
  *
  * Geometry reference (shader units, BH at world (0, 0, -20)):
- *   Schwarzschild radius = 1.0 | disk inner = 3.0 | disk outer = 12.0
+ *   Schwarzschild radius = 2.5 | shadow (b_capture) ≈ 6.5
+ *   disk inner = 7.5 | disk outer = 40.0
+ *
+ * Design: IMMERSIVE fly-through. The orbit stays within the disk's gas
+ * band the whole time, but the vertical arc lifts the camera above the
+ * plane and dips it below, so the gas streams past from above and below
+ * with the black sphere always anchoring the frame — instead of a flat
+ * orange wash.
  */
 export const ORBIT = {
   /** Total cinematic orbit duration in seconds */
@@ -141,19 +180,26 @@ export const ORBIT = {
   /** Full revolutions around the black hole (1.35 ≈ 486° of sweep) */
   revolutions: 1.35,
   /**
-   * Starting orbital radius in world units. 18 = |camera Z=-2 minus
-   * BH Z=-20| — seamless hand-off from the scroll camera's final
-   * position (CAMERA_KEYFRAMES event-horizon leg).
+   * Starting orbital radius in world units. Matches the event-horizon
+   * keyframe (1.0× DISK_OUTER = 30u) — the camera begins the orbit
+   * exactly at the disk's outer edge, then spirals inward. Auto-scales
+   * with the disk size via the same multiplier basis.
    */
-  startRadius: 18,
+  startRadius: 30,
   /**
-   * Final orbital radius before the singularity dive. 7.5 places the
-   * camera INSIDE the disk's outer annulus (3 < 7.5 < 12) — the
-   * Interstellar-style fly-over above the accretion disk.
+   * Final orbital radius before the singularity dive. 14 sits just
+   * inside the disk inner edge (10.5) and well outside the photon
+   * shadow (9.1), giving a real decaying spiral from 30 → 14 that
+   * crosses the entire gas band before the plunge.
    */
-  endRadius: 7.5,
-  /** Peak vertical excursion above/below the disk plane */
-  heightAmplitude: 6.5,
+  endRadius: 14,
+  /**
+   * Peak vertical excursion above/below the disk plane. 13 lifts the
+   * camera clear of the gas at the high/low points of the arc — you see
+   * the disk as a luminous sheet from above, then plunge back through
+   * it. Scaled to the new disk so the view isn't buried in the ring.
+   */
+  heightAmplitude: 13.0,
   /**
    * Sine cycles for the vertical path. 0.75 = rise above the disk,
    * cross the plane edge-on (~t 0.66, the disk becomes a blade of
@@ -213,8 +259,17 @@ export const CAMERA = {
    * ≈5° viewing angle as the removed tilt, and the angle naturally
    * deepens as the camera approaches (physically correct).
    */
-  baseHeight: 2.5,
-  initialPosition: [0, 2.5, 50] as [number, number, number],
+  /**
+   * Physical camera height above the accretion disk plane. Raised to 5
+   * so the camera views the disk from a higher angle — this "fattens"
+   * the lensed top/bottom arc (more of the disk FACE is visible instead
+   * of edge-on), the Interstellar framing. The shader physics are
+   * unchanged; this is purely a more flattering vantage point. The
+   * look-at tracks camera height every frame, so the gaze stays level on
+   * the black hole despite the higher camera.
+   */
+  baseHeight: 5.0,
+  initialPosition: [0, 5.0, 50] as [number, number, number],
 } as const;
 
 // ─── Scroll ─────────────────────────────────────────────────────────────────

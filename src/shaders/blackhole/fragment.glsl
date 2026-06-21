@@ -61,9 +61,21 @@ uniform float uAspect;
 uniform int   uMaxSteps;
 uniform int   uFbmOctaves;
 
-const float SCHWARZSCHILD_R = 1.0;
-const float DISK_INNER = 3.0;
-const float DISK_OUTER = 12.0;
+// Physical scale — the black hole is a TITAN seen from an astronaut's
+// vantage. Radius scaled 2.5x from unit so it reads colossal as the
+// camera approaches (apparent size also grows with proximity — the
+// "imposing on reveal, colossal up close" arc). DISK_INNER must stay
+// OUTSIDE the photon-capture shadow (b_capture = 3√3/2 × R ≈ 6.5) so
+// the accretion ring never renders inside the event-horizon silhouette.
+// Physical scale — the EVENT HORIZON is the star of the show. Radius
+// scaled to 3.5 so the shadow sphere dominates the composition, with a
+// TIGHTER disk (ends at 22 = 2.4× the shadow radius) so the gas frames
+// the sphere as an elegant ring instead of burying it in a vast disk.
+// DISK_INNER must stay OUTSIDE the photon-capture shadow
+// (b_capture = 3√3/2 × R ≈ 9.1).
+const float SCHWARZSCHILD_R = 3.5;
+const float DISK_INNER = 10.5;  // ~1.15× shadow — disk hugs the photon ring
+const float DISK_OUTER = 30.0;  // ~3.3× shadow — substantial ring, sphere still dominant
 const float PI = 3.14159265359;
 const float TAU = 6.28318530718;
 
@@ -73,7 +85,13 @@ const float LUT_B_MAX = 18.0;
 const float LUT_B_RANGE = 18.0;
 
 // Analytic critical impact parameter for a Schwarzschild black hole.
-const float B_CRITICAL = 2.598076; // 3√3 / 2
+const float B_CRITICAL = 2.598076; // 3√3 / 2 (dimensionless, × R for world units)
+
+// Photon-capture radius in WORLD units. With SCHWARZSCHILD_R scaled up,
+// the apparent shadow, the hybrid routing threshold and the corona band
+// must all track this — using the raw B_CRITICAL would size them for a
+// unit black hole and leave a gap between the shadow and the disk.
+const float B_CAPTURE = B_CRITICAL * SCHWARZSCHILD_R; // ≈ 6.50 at R=2.5
 
 // ─── AA Helpers ─────────────────────────────────────────────────────────────
 
@@ -198,12 +216,14 @@ vec4 sampleDiskAtAngle(float r, float angle, float diskSDF) {
     vec2 rotA = rot * posA;
     vec2 rotB = rot * posB;
 
-    float turbA = fbmAdaptive(rotA * 0.6);
-    float turbB = fbmAdaptive(rotB * 0.6 + 50.0);
+    // FBM frequencies are scaled for the disk's world size (spans to r=30),
+    // tuned so the gas reads as broad turbulent clouds at this scale.
+    float turbA = fbmAdaptive(rotA * 0.24);
+    float turbB = fbmAdaptive(rotB * 0.24 + 50.0);
     float turb = mix(turbA, turbB, 0.5);
 
-    float detailA = fbmAdaptive(rotA * 1.5 - uTime * 0.1);
-    float detailB = fbmAdaptive(rotB * 1.5 + 50.0 - uTime * 0.1);
+    float detailA = fbmAdaptive(rotA * 0.6 - uTime * 0.1);
+    float detailB = fbmAdaptive(rotB * 0.6 + 50.0 - uTime * 0.1);
     float detail = mix(detailA, detailB, 0.5);
 
     // Gas cloud density from FBM
@@ -211,24 +231,48 @@ vec4 sampleDiskAtAngle(float r, float angle, float diskSDF) {
     float pattern = mix(0.3, 1.0, gasClouds);
     float density = radialT * pattern;
 
-    // Gravitational redshift: sqrt(1 - rs/r) ≈ 1 - 0.5 * rs/r
+    // ─── Gravitational redshift ──────────────────────────────────────
+    // Light climbing out of the gravity well loses energy and reddens.
+    // sqrt(1 - rs/r); the inner edge (small r) reddens and dims most.
+    // The brake is looser than before (0.15 vs 0.3) so the inner edge
+    // shows a deeper red gradient — physically the dominant effect there.
     float physR = max(r, DISK_INNER);
     float rs_r = SCHWARZSCHILD_R / physR;
-    float gRedshift = mix(1.0 - 0.5 * rs_r, 1.0, 0.3);
+    float gRedshift = mix(1.0 - 0.5 * rs_r, 1.0, 0.15);
 
-    // Relativistic beaming (Doppler): artistic brake at 0.5
-    // prevents the receding side from going pitch black
+    // ─── Relativistic Doppler beaming ────────────────────────────────
+    // The disk gas orbits at relativistic speed. The side rotating TOWARD
+    // the camera is beamed brighter and blue-shifted; the receding side
+    // dims and red-shifts. cos(angle) is +1 on the approaching side,
+    // -1 on the receding side. This asymmetry is THE signature that reads
+    // as "real black hole" (Interstellar, the EHT image).
     float orbitalV = 0.5 * inversesqrt(physR / DISK_INNER);
     float dopplerFactor = 1.0 + cos(angle) * orbitalV;
     float rawBeaming = dopplerFactor * dopplerFactor * dopplerFactor;
-    float beaming = mix(rawBeaming, 1.0, 0.5);
+    // Looser brake (0.75) so the bright/dim asymmetry is clearly visible
+    // while still keeping the receding side from going fully black.
+    float beaming = mix(rawBeaming, 1.0, 0.25);
 
-    // Blackbody temperature: hotter at inner edge, modulated by turbulence
+    // ─── Blackbody temperature + Doppler color shift ─────────────────
+    // Base temperature: hotter at the inner edge, modulated by turbulence.
     float temp = clamp(radialT * pattern * mix(dopplerFactor, 1.0, 0.5), 0.0, 1.0);
     vec3 color = blackbody(temp);
 
-    // Brightness: density × beaming × redshift × SDF edge
-    float brightness = clamp(density * beaming * gRedshift * 2.5, 0.0, 1.0);
+    // Doppler color shift: approaching gas (dopplerFactor > 1) pushes
+    // toward blue-white, receding gas (< 1) toward deep red. Kept subtle
+    // so it reads as a temperature gradient, not a cartoon blue/red split.
+    float dShift = clamp((dopplerFactor - 1.0) * 0.8, -0.5, 0.5);
+    vec3 blueTint = vec3(0.75, 0.85, 1.0);
+    vec3 redTint  = vec3(1.0, 0.55, 0.30);
+    color *= mix(vec3(1.0), blueTint, max(dShift, 0.0));   // approaching
+    color *= mix(vec3(1.0), redTint, max(-dShift, 0.0));   // receding
+
+    // Brightness: density × beaming × redshift × SDF edge.
+    // Base multiplier lowered to 1.8 (was 2.5) so the Doppler-beamed
+    // approaching side has headroom to read as clearly BRIGHTER instead
+    // of everything saturating at the same ceiling — preserving the
+    // characteristic bright/dim asymmetry across the disk.
+    float brightness = clamp(density * beaming * gRedshift * 1.8, 0.0, 1.0);
 
     // Opacity: decoupled from Doppler — dense gas stays opaque even when
     // dimmed by redshift on the receding side. This ensures the disk
@@ -347,7 +391,7 @@ vec4 renderWithLUT(vec2 uv) {
     // ─── EVENT HORIZON (analytic silhouette) ────────────────────────
     // captureMask occludes ONLY the back layer.
     // Front disk composites ON TOP via alpha-over.
-    float captureMask = 1.0 - aaStep(B_CRITICAL, b);
+    float captureMask = 1.0 - aaStep(B_CAPTURE, b);
 
     vec3 bgColor = backColor * (1.0 - captureMask);
     float bgAlpha = captureMask + backAlpha * (1.0 - captureMask);
@@ -357,6 +401,76 @@ vec4 renderWithLUT(vec2 uv) {
     float accAlpha = frontAlpha + bgAlpha * (1.0 - frontAlpha);
 
     return vec4(accColor, accAlpha);
+}
+
+// ─── Lensed Starfield (procedural, direction-sampled) ───────────────────────
+// The background stars are a particle system (THREE.Points) that the
+// raymarcher cannot sample. To render gravitational lensing of the sky —
+// the Einstein ring and the smeared, doubled star field around the
+// shadow — we generate stars PROCEDURALLY from a 3D direction instead.
+//
+// renderWithRK4 feeds this the ray's FINAL (curved) direction: rays that
+// pass close to the black hole exit pointing somewhere else entirely, so
+// the same patch of sky appears bent around the silhouette. Far from the
+// hole the curvature is negligible and these stars read as an ordinary
+// background, blending with the StarField particle system.
+//
+// Implementation: hash a direction quantized onto a spherical grid. Each
+// cell may hold one star at a random offset, with random brightness and a
+// faint warm/cool tint — matching the StarField palette.
+
+float starHash(vec3 p) {
+    p = fract(p * 0.3183099 + 0.1);
+    p *= 17.0;
+    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+
+vec3 lensedStars(vec3 dir) {
+    dir = normalize(dir);
+
+    // Convert direction to spherical coordinates and tile into a grid.
+    float u = atan(dir.z, dir.x);          // -PI..PI
+    float v = acos(clamp(dir.y, -1.0, 1.0)); // 0..PI
+    const float DENSITY = 110.0;
+    vec2 grid = vec2(u, v) * DENSITY;
+    vec2 cell = floor(grid);
+    vec2 f = fract(grid);
+
+    vec3 col = vec3(0.0);
+
+    // Check this cell and neighbours so stars near borders aren't clipped.
+    for (int dx = -1; dx <= 1; dx++) {
+        for (int dy = -1; dy <= 1; dy++) {
+            vec2 c = cell + vec2(float(dx), float(dy));
+            float h = starHash(vec3(c, 1.0));
+            // Fraction of cells containing a star. Lowered threshold =
+            // denser field, so the lensed region has enough stars to
+            // trace a visible ring rather than sparse, easily-missed dots.
+            if (h > 0.80) {
+                // Random sub-cell position
+                vec2 starPos = vec2(
+                    starHash(vec3(c, 2.0)),
+                    starHash(vec3(c, 3.0))
+                );
+                float d = length(f - vec2(float(dx), float(dy)) - starPos);
+                // Sharp point with soft falloff
+                float intensity = smoothstep(0.09, 0.0, d);
+
+                // Brightness and subtle tint variation (matches StarField).
+                // Mid-level brightness: visible enough that the lensed
+                // ring of stars reads clearly near the shadow, while the
+                // open-sky stars still sit behind the StarField particles
+                // without competing.
+                float bright = (0.45 + starHash(vec3(c, 4.0)) * 0.45);
+                float tintRoll = starHash(vec3(c, 5.0));
+                vec3 tint = vec3(1.0);
+                if (tintRoll > 0.9)      tint = vec3(1.0, 0.89, 0.77); // warm
+                else if (tintRoll > 0.8) tint = vec3(0.77, 0.85, 1.0); // cool
+                col += tint * intensity * bright;
+            }
+        }
+    }
+    return col;
 }
 
 // ─── RK4 Path ──────────────────────────────────────────────────────────────
@@ -394,7 +508,7 @@ vec4 renderWithRK4(vec2 uv) {
   //
   // The jump only happens when the gravity zone lies AHEAD of the ray
   // (tEnter > 0). Rays pointed away from the black hole are untouched.
-  const float GRAVITY_ZONE = 16.0; // light bends meaningfully within ~16u
+  const float GRAVITY_ZONE = 34.0; // covers DISK_OUTER (30) + margin; rays integrate the full disk
   vec3 oc = pos - uBlackHolePos;
   float tCenter = -dot(oc, vel);              // param of closest approach
   if (tCenter > 0.0) {
@@ -462,6 +576,23 @@ vec4 renderWithRK4(vec2 uv) {
     if (newR > escapeR && dot(vel, newRVec) > 0.0) break;
   }
 
+  // ─── Lensed background stars ──────────────────────────────────────
+  // Wherever the ray ESCAPED showing empty sky (low accumulated alpha),
+  // sample the procedural starfield with the ray's FINAL direction `vel`.
+  // The RK4 march has already bent `vel` around the black hole, so stars
+  // seen through the strongly-curved region near the silhouette are
+  // displaced and ring around it (the Einstein ring) — this happens
+  // automatically from the curved direction. Stars only appear in
+  // still-dark pixels, so they never paint over the disk or the shadow.
+  float skyVisibility = 1.0 - clamp(accAlpha, 0.0, 1.0);
+  if (skyVisibility > 0.01) {
+    vec3 stars = lensedStars(vel);
+    vec3 starContribution = stars * skyVisibility;
+    accColor += starContribution;
+    float starLum = max(max(starContribution.r, starContribution.g), starContribution.b);
+    accAlpha = clamp(accAlpha + starLum, 0.0, 1.0);
+  }
+
   return vec4(accColor, accAlpha);
 }
 
@@ -490,8 +621,14 @@ void main() {
     vec4 result;
 
     if (uUseLUT > 0.5) {
-        // Smooth blend weight: 1.0 for RK4 at b < 2.8, 0.0 for LUT at b > 3.2
-        float rk4Weight = 1.0 - smoothstep(2.8, 3.2, b);
+        // Route the near-horizon core to RK4 and the background disk to
+        // the LUT. The blend band sits just OUTSIDE the world-space
+        // photon-capture radius (B_CAPTURE), scaling with the black hole
+        // size — a fixed 2.8/3.2 band would land deep inside the shadow
+        // now that the horizon is at b ≈ 6.5.
+        float blendLo = B_CAPTURE + 0.2;
+        float blendHi = B_CAPTURE + 0.6;
+        float rk4Weight = 1.0 - smoothstep(blendLo, blendHi, b);
 
         if (rk4Weight > 0.99) {
             result = renderWithRK4(vUv);
@@ -510,7 +647,7 @@ void main() {
 
     // ─── INNER CORONA (perspective-correct, b-based) ────────────────
     // Fills the gap between the event horizon (b = B_CRITICAL ≈ 2.6)
-    // and the inner edge of the accretion disk (b ≈ DISK_INNER = 3.0)
+    // and the inner edge of the accretion disk (b ≈ DISK_INNER)
     // with a turbulent, fiery gas corona — the lensed photon ring.
     //
     // Uses the 3D impact parameter 'b' and the closest-approach polar
@@ -520,9 +657,11 @@ void main() {
     // camera distance when the BH is behind the ray) guarantees no
     // false corona ring ever appears opposite the black hole.
 
-    // Corona band: from just outside the shadow to the disk inner edge.
-    float coronaInner = B_CRITICAL;
-    float coronaOuter = B_CRITICAL + 0.6;
+    // Corona band: from just outside the shadow (B_CAPTURE) to the disk
+    // inner edge (DISK_INNER). Spanning the real gap keeps the lensed
+    // photon ring glued to the shadow at the new physical scale.
+    float coronaInner = B_CAPTURE;
+    float coronaOuter = DISK_INNER;
     float coronaT = smoothstep(coronaInner, coronaOuter, b);
 
     // Performance gate: only compute FBM within the corona band
@@ -555,12 +694,11 @@ void main() {
         accAlpha = clamp(accAlpha + coronaIntensity * coronaGate * 0.6, 0.0, 1.0);
     }
 
-    // Reveal pacing: the nebula (scroll 0.15 → 0.40) hides the black
-    // hole. It stays fully invisible through the first half of the
-    // nebula, then fades in from its midpoint (0.275) reaching 100%
-    // before the nebula clears (0.35) — so the hole is already whole
-    // by the time the gas thins out.
-    float masterOpacity = smoothstep(0.275, 0.35, uScrollProgress);
+    // Reveal pacing: the nebula hides the black hole until near its end.
+    // With the redistributed phases the nebula/traversal now runs to
+    // ~0.32, so the hole fades in over 0.30 → 0.38 — emerging from behind
+    // the thinning gas right as revelation begins.
+    float masterOpacity = smoothstep(0.30, 0.38, uScrollProgress);
     float alpha = clamp(accAlpha, 0.0, 1.0) * masterOpacity;
 
     gl_FragColor = vec4(accColor, alpha);

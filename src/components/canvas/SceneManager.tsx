@@ -91,9 +91,9 @@ export function SceneManager() {
   const setReady = useExperienceStore((s) => s.setReady);
   const scroll = useScroll();
 
-  // Look target initialized at camera height so the gaze is level from
-  // the first frame (see Bug A fix in the look-at logic below).
-  const lookTarget = useRef(new Vector3(0, CAMERA.baseHeight, 0));
+  // Look target initialized aimed at the black hole (Z=-20) at camera
+  // height, so the gaze is correct and level from the very first frame.
+  const lookTarget = useRef(new Vector3(0, CAMERA.baseHeight, -20));
   const readySignaled = useRef(false);
   const cameraSnapped = useRef(false);
 
@@ -164,17 +164,17 @@ export function SceneManager() {
     // The look target tracks the black hole at the camera's OWN height,
     // so the camera always gazes horizontally toward it. Targeting a
     // fixed (0,0,0) created a severe pitch-down angle once the camera
-    // got close (atan(2.5 / 2) ≈ 51°), pushing the BH off-screen in
-    // discovery/approach. Matching the look Y to the camera Y keeps the
-    // gaze level at any distance (Bug A).
+    // got close; matching the look Y to the camera Y keeps the gaze
+    // level at any distance.
     //
-    // Z still eases between "ahead" (0) in the calm early phases and the
-    // black hole (BH_Z) as we commit to it, preserving the original
-    // reveal pacing.
-    const isEntering = isSingularity || phase === "event-horizon";
-    const targetLookZ = isEntering ? BH_Z : 0;
+    // The look Z is ALWAYS the black hole (BH_Z). It used to ease from
+    // "ahead" (0) to the black hole only in the entering phases — but
+    // with the closer scale-journey keyframes the camera now travels
+    // through and past z=0, so looking at 0 made the camera flip to face
+    // backward mid-discovery once it crossed the target point. The black
+    // hole is the focus of every phase, so we lock the look Z to it.
     const lookDamp = isSingularity ? 8 : 1.5;
-    lookTarget.current.z = damp(lookTarget.current.z, targetLookZ, lookDamp, delta);
+    lookTarget.current.z = damp(lookTarget.current.z, BH_Z, lookDamp, delta);
     // Track the camera height every frame — eliminates the pitch-down.
     lookTarget.current.y = camera.position.y;
     camera.lookAt(lookTarget.current);

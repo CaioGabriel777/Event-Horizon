@@ -144,10 +144,6 @@ export function BlackHole({
       uBlackHolePos: { value: new THREE.Vector3(0, 0, -20) },
       uMaxSteps: { value: 80 },
       uFbmOctaves: { value: 3 },
-      // DEBUG: set to 1.0 to see routing zones (RED=RK4, GREEN=LUT,
-      // YELLOW=blend, BLUE=where RK4 accumulated alpha). Set to 0.0 for
-      // normal rendering.
-      uDebugRouting: { value: 1.0 },
     }),
     [dummyTex]
   );
@@ -190,15 +186,23 @@ export function BlackHole({
     materialRef.current.uniforms.uAspect.value = state.size.width / state.size.height;
     materialRef.current.uniforms.uFov.value = THREE.MathUtils.degToRad(cam.fov);
 
-    // ─── CINEMATIC LUT BYPASS ─────────────────────────────────────────
-    // The 2D LUT is only valid for the fixed frontal scroll camera.
-    // Force pure RK4 while the orbital approach or the singularity
-    // sequence controls the camera. Reading via getState() avoids
-    // subscribing this component to high-frequency cinematic state.
+    // ─── PURE RK4 MODE (LUT disabled) ─────────────────────────────────
+    // The vacuum-skip optimization made full-screen RK4 affordable even on
+    // integrated GPUs, so the hybrid LUT is no longer needed. Disabling it
+    // also removes a whole class of bugs: the LUT was baked in Rust against
+    // a FIXED frontal camera AND a fixed disk geometry (R=1, disk 3..12),
+    // so it broke under the orbital camera and again when the black hole
+    // was scaled up (R=2.5, disk 7..20). Pure RK4 renders correct geometry
+    // at any size, distance, and angle.
+    //
+    // To RE-ENABLE the LUT later (Caminho 1): regenerate lib.rs with the
+    // current SCHWARZSCHILD_R / DISK_INNER / DISK_OUTER / LUT_B_MAX, then
+    // flip USE_LUT back to true here.
+    const USE_LUT = false;
     const expState = useExperienceStore.getState();
     const cinematicActive =
       expState.isOrbitActive || expState.isSingularityActive;
-    const lutEnabled = lutReadyRef.current && !cinematicActive;
+    const lutEnabled = USE_LUT && lutReadyRef.current && !cinematicActive;
     materialRef.current.uniforms.uUseLUT.value = lutEnabled ? 1.0 : 0.0;
 
     if (lutEnabled !== lastLutStateRef.current) {
@@ -206,7 +210,7 @@ export function BlackHole({
       console.log(
         lutEnabled
           ? "[BlackHole] LUT engaged — hybrid LUT+RK4 mode (frontal camera)"
-          : "[BlackHole] LUT bypassed — pure RK4 mode (cinematic camera)"
+          : "[BlackHole] Pure RK4 mode (LUT disabled)"
       );
     }
 
