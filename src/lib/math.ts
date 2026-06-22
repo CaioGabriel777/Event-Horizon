@@ -68,13 +68,13 @@ export function getPhaseProgress(
 
 /**
  * Compute gravity intensity from global scroll progress.
- * New timeline: gravity starts at revelation (0.40), peaks at singularity.
+ * Gravity starts at revelation (0.32), peaks at singularity.
  */
 export function computeGravity(scrollProgress: number): number {
-  if (scrollProgress < 0.40) return 0;
-  if (scrollProgress < 0.60) return smoothstep(0.40, 0.60, scrollProgress) * 0.15;
-  if (scrollProgress < 0.72) return remap(scrollProgress, 0.60, 0.72, 0.15, 0.5);
-  if (scrollProgress < 0.82) return remap(scrollProgress, 0.72, 0.82, 0.5, 0.85);
+  if (scrollProgress < 0.32) return 0;
+  if (scrollProgress < 0.50) return smoothstep(0.32, 0.50, scrollProgress) * 0.15;
+  if (scrollProgress < 0.66) return remap(scrollProgress, 0.50, 0.66, 0.15, 0.5);
+  if (scrollProgress < 0.82) return remap(scrollProgress, 0.66, 0.82, 0.5, 0.85);
   if (scrollProgress < 0.90) return remap(scrollProgress, 0.82, 0.90, 0.85, 1.0);
   return 1.0;
 }

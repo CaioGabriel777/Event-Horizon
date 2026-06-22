@@ -196,8 +196,6 @@ export function HelmetHUD() {
 
   return (
     <>
-
-
       <AnimatePresence>
         {isHelmetOn && (
         <motion.div

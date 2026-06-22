@@ -3,12 +3,23 @@
  * ==========================================
  * Central state machine for the cinematic experience.
  * Manages the global scroll progress, cinematic phases, and the
- * single-source-of-truth timeline for the singularity transition.
+ * single-source-of-truth timelines for the orbital approach and the
+ * singularity transition.
+ *
+ * CINEMATIC STATE CONTRACT:
+ *  - isOrbitActive / orbitProgress: owned by useOrbitCamera. While
+ *    active, the scroll resolver is suspended (useScrollPhase locks),
+ *    so phase/gravity set manually by the orbit are never overwritten.
+ *  - isSingularityActive / singularityProgress: owned by SingularityPass.
+ *  - HUD components may freely READ orbitProgress/singularityProgress
+ *    to derive reactions (telemetry, warnings, integrity decay) without
+ *    coupling to the cinematic controllers.
  */
 
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import type { Phase, QualityTier, ExperienceState } from "@/types";
+import type { GpuProfile } from "@/lib/gpuProfile";
 import { PHASES } from "@/lib/constants";
 import { computeGravity, clamp, getPhaseProgress } from "@/lib/math";
 
@@ -35,15 +46,17 @@ export const useExperienceStore = create<ExperienceState>()(
     phaseProgress: 0,
     gravity: 0,
     qualityTier: "high",
+    gpuProfile: "high",
     isTransitioning: false,
     isReady: false,
     isHelmetOn: true,
     dpr: 0.75,
     antialias: false,
-    isLooping: false,
     singularityProgress: 0,
     isSingularityActive: false,
     shouldResetScroll: false,
+    isOrbitActive: false,
+    orbitProgress: 0,
 
     setScrollProgress: (v: number) => {
       const progress = clamp(v, 0, 1);
@@ -84,6 +97,10 @@ export const useExperienceStore = create<ExperienceState>()(
       set({ qualityTier: tier });
     },
 
+    setGpuProfile: (profile: GpuProfile) => {
+      set({ gpuProfile: profile });
+    },
+
     setReady: () => {
       set({ isReady: true });
     },
@@ -99,5 +116,7 @@ export const useExperienceStore = create<ExperienceState>()(
     setSingularityProgress: (v: number) => set({ singularityProgress: v }),
     setIsSingularityActive: (v: boolean) => set({ isSingularityActive: v }),
     setShouldResetScroll: (v: boolean) => set({ shouldResetScroll: v }),
+    setIsOrbitActive: (v: boolean) => set({ isOrbitActive: v }),
+    setOrbitProgress: (v: number) => set({ orbitProgress: v }),
   }))
 );

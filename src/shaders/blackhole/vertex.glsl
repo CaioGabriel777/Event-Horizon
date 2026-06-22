@@ -5,22 +5,17 @@
  * Passes UV coordinates and ray direction to the fragment shader.
  */
 
+/**
+ * Black Hole — Vertex Shader (Fullscreen Quad, NDC)
+ * ==================================================
+ * Pins the quad directly in clip space (-1 to +1).
+ * Bypasses all Three.js projection/modelView transforms.
+ * The raymarcher in the fragment shader handles all 3D geometry.
+ */
 varying vec2 vUv;
-varying vec3 vRayDir;
-
-uniform float uFov;
 
 void main() {
-    vUv = uv;
-
-    // Compute ray direction from camera through this vertex
-    // This assumes the quad is at z = -1 in camera space
-    float halfFov = tan(uFov * 0.5);
-    vRayDir = normalize(vec3(
-        (uv.x - 0.5) * 2.0 * halfFov,
-        (uv.y - 0.5) * 2.0 * halfFov,
-        -1.0
-    ));
-
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  vUv = uv;
+  // Bypass all transforms — position directly in clip space
+  gl_Position = vec4(position.xy, 0.0, 1.0);
 }

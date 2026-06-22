@@ -6,12 +6,18 @@
  * as the sole source of truth to drive a 4-act cinematic sequence.
  * 
  * Act 1: Relativistic beaming and chromatic aberration
- * Act 2: Radial stretch, speed lines, and extreme FOV stretching
- * Act 3: Progressive bottom-to-top vignette dissolution into black
+ * Act 2: Spaghettification (radial smear, redshift, dolly-zoom FOV)
+ * Act 3: Progressive event-horizon void swallowing the screen
  * Act 4: Smooth fade-in revealing the new universe
  *
+ * ENTRY (orbital hand-off): the sequence is now triggered by the
+ * useOrbitCamera hook, which sets phase='singularity' and gravity=1.0
+ * when the cinematic orbit completes. The `!isOrbitActive` guard below
+ * prevents a premature trigger if a violent scroll ever resolves the
+ * phase to 'singularity' while the orbit is still running.
+ *
  * It communicates with the scroll controller purely by signaling 
- * \`shouldResetScroll\` via the Zustand store, maintaining strict 
+ * `shouldResetScroll` via the Zustand store, maintaining strict 
  * separation of concerns between DOM manipulation and GPU rendering.
  */
 
@@ -32,8 +38,10 @@ import {
 import { useFrame } from "@react-three/fiber";
 import { useFBO } from "@react-three/drei";
 import { useExperienceStore } from "@/store/useExperienceStore";
+import { BLACK_HOLE_POSITION as BH_POS } from "@/lib/constants";
 
-const BLACK_HOLE_POSITION = new Vector3(0, 0, -20);
+// Derived from the single source of truth in constants.ts.
+const BLACK_HOLE_POSITION = new Vector3(...BH_POS);
 
 // ─── Vertex Shader (full-screen quad) ───────────────────────────────────────
 const vertexShader = /* glsl */ `
@@ -180,17 +188,29 @@ export function SingularityPass() {
     const state = useExperienceStore.getState();
 
     // ─── Entry Detection ──────────────────────────────────────────────
-    // Triggers only if not running and singularity phase is reached
+    // Normal entry: useOrbitCamera completes its 12s approach and sets
+    // phase='singularity' + gravity=1.0 — this condition fires on the
+    // very same frame (this callback runs at priority 1, after the
+    // orbit's priority-0 callback).
+    // The !isOrbitActive guard prevents premature entry if a violent
+    // scroll jump ever resolves phase='singularity' mid-orbit.
     if (
       state.phase === 'singularity' &&
       state.gravity >= 0.92 &&
+      !state.isOrbitActive &&
       !isRunning.current &&
       !hasReset.current  // Prevents re-entry during the current cycle
     ) {
       isRunning.current = true;
       hasReset.current = false;
       timerRef.current = 0;
+      // Defensive orientation lock: regardless of how the orbit hand-off
+      // resolved (frame races, large deltas), the collapse sequence and
+      // its dolly-zoom assume the camera is centered on the black hole.
+      // Lock it here, once, on the engagement frame (Bug 2).
+      camera.lookAt(BLACK_HOLE_POSITION);
       useExperienceStore.getState().setIsSingularityActive(true);
+      console.log("[Singularity] Sequence engaged — 4-act collapse timeline started");
     }
 
     // ─── Inactive Path ────────────────────────────────────────────────

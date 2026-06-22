@@ -29,6 +29,7 @@ import { SingularityPass } from "./effects/Singularity";
 import { StarField } from "./objects/StarField";
 import { useExperienceStore } from "@/store/useExperienceStore";
 import { CAMERA, SCROLL, SHADER, PERFORMANCE } from "@/lib/constants";
+import { detectGpuProfile } from "@/lib/gpuProfile";
 import { Stats } from "@react-three/drei";
 import { HelmetHUD } from "../ui/HelmetHUD";
 
@@ -113,6 +114,11 @@ export function Experience() {
         frameloop="always"
         onCreated={({ gl, scene, camera }) => {
           gl.compile(scene, camera);
+
+          // Detect GPU tier on first frame and store globally
+          const profile = detectGpuProfile(gl.getContext() as WebGL2RenderingContext);
+          useExperienceStore.getState().setGpuProfile(profile);
+          console.log(`[Experience] GPU profile set to: ${profile}`);
         }}
       >
         <color attach="background" args={["#030308"]} />

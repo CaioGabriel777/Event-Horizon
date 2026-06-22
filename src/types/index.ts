@@ -5,6 +5,8 @@
  * performance monitoring, and shader uniforms.
  */
 
+import type { GpuProfile } from "@/lib/gpuProfile";
+
 /** The cinematic phases of the experience */
 export type Phase =
   | "home"
@@ -36,12 +38,19 @@ export interface ExperienceState {
   phaseProgress: number;        // 0 → 1 within current phase
   gravity: number;              // 0 → 1 gravitational intensity
   qualityTier: QualityTier;
+  /** Detected GPU capability tier — drives resolution scale, step count, FBM octaves */
+  gpuProfile: GpuProfile;
   isTransitioning: boolean;
   isReady: boolean;             // True when Canvas is fully compiled
   isHelmetOn: boolean;          // True when the astronaut helmet overlay is active
   dpr: number;
   antialias: boolean;
-  isLooping: boolean;
+  
+  /** True when the cinematic orbit is running */
+  isOrbitActive: boolean;
+  /** Cinematic orbit progress (0.0 to 1.0) */
+  orbitProgress: number;
+
   /** Timeline progress (0.0 to 1.0) of the singularity cinematic sequence */
   singularityProgress: number;  
   
@@ -56,11 +65,13 @@ export interface ExperienceState {
   setPhase: (v: Phase) => void;
   setGravity: (v: number) => void;
   setQualityTier: (tier: QualityTier) => void;
+  setGpuProfile: (profile: GpuProfile) => void;
   setReady: () => void;
   setIsHelmetOn: (v: boolean | ((prev: boolean) => boolean)) => void;
   setDpr: (v: number) => void;
   setAntialias: (v: boolean) => void;
-  setIsLooping: (v: boolean) => void;
+  setIsOrbitActive: (v: boolean) => void;
+  setOrbitProgress: (v: number) => void;
   setSingularityProgress: (v: number) => void;
   setIsSingularityActive: (v: boolean) => void;
   setShouldResetScroll: (v: boolean) => void;
