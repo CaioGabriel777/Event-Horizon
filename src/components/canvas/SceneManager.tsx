@@ -45,7 +45,12 @@ import { useOrbitCamera } from "@/hooks/useOrbitCamera";
 import { usePerformanceMonitor } from "@/hooks/usePerformanceMonitor";
 import { useAdaptiveQuality } from "@/hooks/useAdaptiveQuality";
 import { useExperienceStore } from "@/store/useExperienceStore";
-import { CAMERA, CAMERA_KEYFRAMES } from "@/lib/constants";
+import {
+  CAMERA,
+  CAMERA_KEYFRAMES,
+  BLACK_HOLE_POSITION,
+  BLACK_HOLE_SCALE,
+} from "@/lib/constants";
 import { damp, lerp } from "@/lib/math";
 
 // Scene components
@@ -57,7 +62,7 @@ import { SingularityScene } from "./scenes/SingularityScene";
 import { BlackHole } from "./objects/BlackHole";
 import { StarStreaks } from "./effects/StarStreaks";
 
-const BH_Z = -20;
+const BH_Z = BLACK_HOLE_POSITION[2];
 
 /**
  * Interpolate camera Z from the keyframe table.
@@ -91,9 +96,9 @@ export function SceneManager() {
   const setReady = useExperienceStore((s) => s.setReady);
   const scroll = useScroll();
 
-  // Look target initialized aimed at the black hole (Z=-20) at camera
-  // height, so the gaze is correct and level from the very first frame.
-  const lookTarget = useRef(new Vector3(0, CAMERA.baseHeight, -20));
+  // Look target initialized aimed at the black hole at camera height, so
+  // the gaze is correct and level from the very first frame.
+  const lookTarget = useRef(new Vector3(0, CAMERA.baseHeight, BH_Z));
   const readySignaled = useRef(false);
   const cameraSnapped = useRef(false);
 
@@ -198,7 +203,7 @@ export function SceneManager() {
 
   return (
     <group>
-      <BlackHole position={[0, 0, -20]} scale={22} visible={!isReady || true} />
+      <BlackHole position={[...BLACK_HOLE_POSITION]} scale={BLACK_HOLE_SCALE} visible={!isReady || true} />
       <NebulaScene active={!isReady || nebulaActive} />
       <DiscoveryScene active={!isReady || phase === "discovery" || phase === "approach" || phase === "revelation"} />
       <ApproachScene active={!isReady || bhActive} />

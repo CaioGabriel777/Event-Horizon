@@ -1,8 +1,13 @@
 /**
  * Nebula — Texture-Based Volumetric Particle Cloud
  * ============================================================================
- * Optimized for maximum fill-rate performance using a pre-rendered 
+ * Optimized for maximum fill-rate performance using a pre-rendered
  * smoke texture instead of expensive procedural fragment noise.
+ *
+ * Placement is WORLD-ANCHORED: the cloud center and depth come from
+ * constants (NEBULA_CENTER_Z / NEBULA_HALF_DEPTH), which are derived from
+ * the journey's world anchors. Moving the nebula in constants.ts moves the
+ * particles, the dissolve timing, and the phase boundaries together.
  */
 
 "use client";
@@ -10,7 +15,6 @@
 import { useRef, useMemo, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useScroll, useTexture } from "@react-three/drei";
-import { MathUtils } from "three";
 import {
   InstancedMesh,
   Matrix4,
@@ -20,6 +24,7 @@ import {
   AdditiveBlending,
   DoubleSide,
 } from "three";
+import { NEBULA_CENTER_Z, NEBULA_HALF_DEPTH } from "@/lib/constants";
 
 import vertexShader from "@/shaders/nebula/vertex.glsl";
 import fragmentShader from "@/shaders/nebula/fragment.glsl";
@@ -27,7 +32,15 @@ import fragmentShader from "@/shaders/nebula/fragment.glsl";
 // ─── Config ─────────────────────────────────────────────────────────────────
 
 const PARTICLE_COUNT = 20;
-const CLOUD_CENTER_Z = 10;
+const CLOUD_CENTER_Z = NEBULA_CENTER_Z;
+
+// Particle Z-spread is derived from the intended world depth of the cloud.
+// The core sits in the dense middle; the halo extends toward the full depth
+// but is kept WITHIN the anchored extent (factor ≤ 1.0 each side) so the
+// gas never spills past nebulaFarZ into the zone where the black hole must
+// be visible. (Previously hardcoded ±15 / ±30, which overshot.)
+const CORE_Z_SPREAD = NEBULA_HALF_DEPTH * 1.0;
+const HALO_Z_SPREAD = NEBULA_HALF_DEPTH * 1.2;
 
 // ─── Particle Distribution ──────────────────────────────────────────────────
 
@@ -48,7 +61,9 @@ function generateParticles(count: number) {
 
     let x = Math.cos(angle) * radius;
     let y = Math.sin(angle) * radius;
-    let z = CLOUD_CENTER_Z + (Math.random() - 0.5) * (isCore ? 15 : 30);
+    let z =
+      CLOUD_CENTER_Z +
+      (Math.random() - 0.5) * (isCore ? CORE_Z_SPREAD : HALO_Z_SPREAD);
 
     let isDustLane = Math.sin(x * 0.15) * Math.cos(y * 0.15) > 0.4 && !isCore;
 
@@ -115,19 +130,23 @@ export function Nebula() {
 
     materialRef.current.uniforms.uTime.value = state.clock.elapsedTime;
 
-    const targetScroll = scroll.offset;
-    materialRef.current.uniforms.uScroll.value = MathUtils.lerp(
-      materialRef.current.uniforms.uScroll.value,
-      targetScroll,
-      0.05
+    // ─── Dissolve by FIXED scroll values, EASED so it stays dense ─────
+    // The window is 0.18 → 0.35, but a LINEAR fade made the gas go
+    // transparent too early — you could see through it right after the
+    // start. Raising the linear factor to the 4th power keeps the cloud
+    // dense through most of the crossing and only clears it at the very
+    // end: at scroll 0.30 the gas is still ~75% opaque, so it genuinely
+    // hides the black hole until the final stretch, then opens up. These
+    // bounds match the traversal end / reveal in constants.ts (both 0.35).
+    const s = scroll.offset;
+    const DISSOLVE_START = 0.10;
+    const DISSOLVE_END = 0.210; // matches nebulaExit / reveal end in constants.ts
+    const t = Math.min(
+      1,
+      Math.max(0, (s - DISSOLVE_START) / (DISSOLVE_END - DISSOLVE_START))
     );
-
-    const smoothScroll = materialRef.current.uniforms.uScroll.value;
-
-    let progress = 0;
-    if (smoothScroll > 0.4) {
-      progress = Math.min(1, (smoothScroll - 0.4) / 0.2);
-    }
+    const progress = t * t * t * t; // eased: dense until the end, then clears
+    materialRef.current.uniforms.uScroll.value = s;
     materialRef.current.uniforms.uProgress.value = progress;
   });
 

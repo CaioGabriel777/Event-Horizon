@@ -43,7 +43,7 @@ import {
   HalfFloatType,
 } from "three";
 import * as THREE from "three";
-import { SHADER } from "@/lib/constants";
+import { SHADER, BLACK_HOLE_POSITION, TIMELINE_CUES } from "@/lib/constants";
 import { useExperienceStore } from "@/store/useExperienceStore";
 import { useGeodesicLUT } from "@/hooks/useGeodesicLUT";
 import { GPU_PROFILES } from "@/lib/gpuProfile";
@@ -71,7 +71,7 @@ function createDummyTexture(): DataTexture {
 }
 
 export function BlackHole({
-  position = [0, 0, -20],
+  position = [...BLACK_HOLE_POSITION],
   scale = 12,
   visible = true,
 }: BlackHoleProps) {
@@ -134,6 +134,11 @@ export function BlackHole({
       uOuterRadius: { value: SHADER.accretionOuterRadius },
       uFov: { value: 1.3 },
       uScrollProgress: { value: 0 },
+      // Black-hole reveal window, derived from the nebula's physical
+      // position (TIMELINE_CUES) so the fade-in is always glued to the
+      // final third of the nebula instead of a hand-tuned scroll value.
+      uRevealStart: { value: TIMELINE_CUES.blackHoleRevealStart },
+      uRevealEnd: { value: TIMELINE_CUES.blackHoleRevealEnd },
       uGeodesicLUT: { value: dummyTex },
       uUseLUT: { value: 0.0 },
       uCameraPos: { value: new THREE.Vector3() },
@@ -141,7 +146,7 @@ export function BlackHole({
       uCameraUp: { value: new THREE.Vector3() },
       uCameraForward: { value: new THREE.Vector3() },
       uAspect: { value: 1.0 },
-      uBlackHolePos: { value: new THREE.Vector3(0, 0, -20) },
+      uBlackHolePos: { value: new THREE.Vector3(...(position ?? BLACK_HOLE_POSITION)) },
       uMaxSteps: { value: 80 },
       uFbmOctaves: { value: 3 },
     }),

@@ -39,72 +39,10 @@ export const COLORS = {
 } as const;
 
 // ─── Cinematic Phase Configurations ─────────────────────────────────────────
-export const PHASES: readonly PhaseConfig[] = [
-  {
-    id: "home",
-    label: "Home",
-    scrollStart: 0.0,
-    scrollEnd: 0.0,
-    gravity: 0.0,
-    cameraZ: 50,
-  },
-  {
-    id: "awakening",
-    label: "Awakening",
-    scrollStart: 0.0,
-    scrollEnd: 0.12,
-    gravity: 0.0,
-    cameraZ: 50,       // Camera stays still during awakening
-  },
-  {
-    id: "traversal",
-    label: "Traversal",
-    scrollStart: 0.12,
-    scrollEnd: 0.32,
-    gravity: 0.0,
-    cameraZ: 28,        // Camera advances through nebula
-  },
-  {
-    id: "revelation",
-    label: "Revelation",
-    scrollStart: 0.32,
-    scrollEnd: 0.50,
-    gravity: 0.05,
-    cameraZ: 15,        // Nebula fading, BH appearing
-  },
-  {
-    id: "discovery",
-    label: "Discovery",
-    scrollStart: 0.50,
-    scrollEnd: 0.66,
-    gravity: 0.15,
-    cameraZ: 10,
-  },
-  {
-    id: "approach",
-    label: "Approach",
-    scrollStart: 0.66,
-    scrollEnd: 0.82,
-    gravity: 0.6,
-    cameraZ: 5,
-  },
-  {
-    id: "event-horizon",
-    label: "Event Horizon",
-    scrollStart: 0.82,
-    scrollEnd: 0.90,
-    gravity: 0.9,
-    cameraZ: 1,
-  },
-  {
-    id: "singularity",
-    label: "Singularity",
-    scrollStart: 0.90,
-    scrollEnd: 1.0,
-    gravity: 1.0,
-    cameraZ: -18,
-  },
-] as const;
+// NOTE: PHASES is defined further down (see "Derived phases"), AFTER the
+// world anchors and the scroll↔world conversion helpers it depends on. It
+// can't live here because its scroll boundaries are now DERIVED from the
+// nebula's physical position rather than hand-tuned.
 
 // ─── Disk geometry mirror (single source of truth for phase anchoring) ──────
 // These MUST match the shader constants in fragment.glsl. The camera
@@ -118,6 +56,26 @@ export const BH_GEOMETRY = {
   diskOuter: 30.0,
   bCapture: 9.1, // photon-capture radius = 3√3/2 × R
 } as const;
+
+// ─── Single source of truth for the black hole's world placement ────────────
+// Every system that needs the black hole's position (the shader uniform,
+// the orbit camera, the scene look-at, the singularity sequence) imports
+// these instead of hardcoding the value. Moving the black hole is now a
+// one-line change here — no more keeping a literal `-20` in sync across
+// five files.
+//
+// BLACK_HOLE_POSITION is a plain tuple so it has no dependency on three.js
+// (constants.ts stays framework-agnostic); each consumer wraps it in a
+// Vector3 / prop as needed.
+export const BLACK_HOLE_POSITION: readonly [number, number, number] = [
+  0,
+  0,
+  BH_GEOMETRY.blackHoleZ,
+];
+
+/** Render scale passed to the <BlackHole> mesh. Kept here so the mesh
+ *  size lives alongside the geometry it represents. */
+export const BLACK_HOLE_SCALE = 22;
 
 // ─── Camera Z Keyframes (DISK-ANCHORED, auto-scaling) ───────────────────────
 // Each camera distance is expressed as a MULTIPLE of the disk's outer
@@ -134,21 +92,27 @@ export const BH_GEOMETRY = {
 //     previous hand-tuned keyframes introduced in traversal.
 //
 // Phase → disk relationship (multiplier of DISK_OUTER):
-//   home/awaken : 3.2×  — far, static; the whole system sits in the void
-//   traversal   : 2.8×  — gentle approach through the thinning nebula
-//   revelation  : 2.2×  — the disk and shadow read clearly, still distant
-//   discovery   : 1.6×  — the structure opens up, lensing becomes obvious
-//   approach    : 1.15× — the shadow dominates, disk filling the frame
+//   home/awaken : 4.6×  — far, static; the system is a distant point
+//   traversal   : 4.2×  — through the nebula (BH still tiny, hidden in gas)
+//   revelation  : 3.6×  — nebula clears; BH emerges SMALL and distant
+//   discovery   : 2.5×  — the long approach begins; BH visibly growing
+//   approach    : 1.6×  — BH now dominates, disk detail resolves
 //   event-horizon: 1.0× — camera reaches the disk's OUTER EDGE exactly.
-//                         dist == DISK_OUTER is the physical moment of
-//                         arrival at the accretion disk, so the orbit
-//                         engages here automatically — at ANY disk size.
+//
+// The multipliers are spread so that MOST of the camera's travel — and
+// most of the black hole's apparent growth (≈11% → 40% of screen height)
+// — happens AFTER the nebula, across revelation→discovery→approach. This
+// is the long, felt approach to a growing titan, rather than the BH
+// reaching near-full size right as the nebula clears.
+// The multipliers produce a LINEAR camera Z over scroll, so the camera
+// moves at a UNIFORM speed across every phase — no phase feels faster or
+// more sluggish than another. (z goes 118 → 10 evenly from scroll 0 → 0.82.)
 const DISK_DISTANCE_MULTIPLIERS = [
-  { scroll: 0.00, mult: 3.2 },
-  { scroll: 0.12, mult: 2.8 },
-  { scroll: 0.32, mult: 2.2 },
-  { scroll: 0.50, mult: 1.6 },
-  { scroll: 0.66, mult: 1.15 },
+  { scroll: 0.00, mult: 5.0 },
+  { scroll: 0.12, mult: 4.42 },
+  { scroll: 0.32, mult: 3.44 },
+  { scroll: 0.50, mult: 2.56 },
+  { scroll: 0.66, mult: 1.78 },
   { scroll: 0.82, mult: 1.0 },
 ] as const;
 
@@ -157,6 +121,206 @@ export const CAMERA_KEYFRAMES = DISK_DISTANCE_MULTIPLIERS.map(({ scroll, mult })
   scroll,
   z: Math.round(BH_GEOMETRY.diskOuter * mult + BH_GEOMETRY.blackHoleZ),
 }));
+
+// ════════════════════════════════════════════════════════════════════════════
+// WORLD-ANCHORED TIMELINE
+// ════════════════════════════════════════════════════════════════════════════
+// The single source of truth for the whole experience is PHYSICAL POSITION
+// in the world (Z coordinates), NOT hand-tuned scroll numbers. Phases,
+// scene activations and art cues (black-hole reveal, nebula dissolve) are
+// all DERIVED from where the camera is relative to these anchors. Move an
+// anchor — the nebula, the black hole — and everything that depends on it
+// repositions automatically. No more hand-calculated scroll values drifting
+// out of sync.
+//
+// The camera travels along +Z → −Z (from CAMERA_KEYFRAMES[0].z toward the
+// black hole). `scrollToWorldZ` / `worldZToScroll` convert between the two
+// coordinate systems by inverting the keyframe map.
+
+/** Camera world-Z at a given scroll [0..1] (piecewise-linear keyframes). */
+export function scrollToWorldZ(scroll: number): number {
+  const kf = CAMERA_KEYFRAMES;
+  if (scroll <= kf[0].scroll) return kf[0].z;
+  if (scroll >= kf[kf.length - 1].scroll) return kf[kf.length - 1].z;
+  for (let i = 0; i < kf.length - 1; i++) {
+    if (scroll >= kf[i].scroll && scroll <= kf[i + 1].scroll) {
+      const t = (scroll - kf[i].scroll) / (kf[i + 1].scroll - kf[i].scroll);
+      return kf[i].z + (kf[i + 1].z - kf[i].z) * t;
+    }
+  }
+  return kf[kf.length - 1].z;
+}
+
+/** Inverse of scrollToWorldZ: the scroll [0..1] at which the camera reaches
+ *  a given world-Z. Z decreases as scroll increases, so we walk segments
+ *  looking for the one that brackets the target Z. */
+export function worldZToScroll(z: number): number {
+  const kf = CAMERA_KEYFRAMES;
+  if (z >= kf[0].z) return kf[0].scroll;
+  if (z <= kf[kf.length - 1].z) return kf[kf.length - 1].scroll;
+  for (let i = 0; i < kf.length - 1; i++) {
+    const zHi = kf[i].z;
+    const zLo = kf[i + 1].z;
+    if (z <= zHi && z >= zLo) {
+      const t = (zHi - z) / (zHi - zLo);
+      return kf[i].scroll + (kf[i + 1].scroll - kf[i].scroll) * t;
+    }
+  }
+  return kf[kf.length - 1].scroll;
+}
+
+// ─── World anchors: the physical layout of the journey ──────────────────────
+// Edit THESE to reshape the experience. Everything downstream follows.
+export const WORLD_ANCHORS = {
+  /** Where the camera starts (its home keyframe). */
+  cameraStartZ: CAMERA_KEYFRAMES[0].z,
+  /** The black hole's Z (from the geometry source of truth). */
+  blackHoleZ: BH_GEOMETRY.blackHoleZ,
+  /**
+   * Nebula extent in world Z. The camera enters at nebulaNearZ (the side
+   * closest to the start) and exits at nebulaFarZ (toward the black hole).
+   * CRITICAL: nebulaFarZ must stay AHEAD of the revelation camera position
+   * (~z=88) so the gas fully clears BEFORE the black hole needs to be
+   * visible — otherwise the additive nebula renders over the hole and
+   * hides it. The camera exits the gas, then the hole is revealed.
+   */
+  /**
+   * Nebula extent in world Z, placed across the span the camera occupies
+   * DURING the traversal phase (scroll 0.12→0.32 ≈ z=102→76). This makes
+   * the traversal phase and the physical crossing of the gas coincide.
+   * The particles are large (scale 80–130), so the camera sees the cloud
+   * ahead from the start, flies into it during traversal, and the cloud
+   * dissolves as it exits — clearing for the revelation.
+   */
+  nebulaNearZ: 100,
+  nebulaFarZ: 78,
+} as const;
+
+/** Nebula center & half-depth, derived from its near/far anchors. The
+ *  Nebula component imports CENTER for CLOUD_CENTER_Z and HALF_DEPTH to
+ *  size the particle spread to the intended world extent. */
+export const NEBULA_CENTER_Z = Math.round(
+  (WORLD_ANCHORS.nebulaNearZ + WORLD_ANCHORS.nebulaFarZ) / 2
+);
+export const NEBULA_HALF_DEPTH = Math.round(
+  Math.abs(WORLD_ANCHORS.nebulaNearZ - WORLD_ANCHORS.nebulaFarZ) / 2
+);
+/** Near/far world-Z bounds of the nebula, for position-based dissolve. */
+export const NEBULA_NEAR_Z = WORLD_ANCHORS.nebulaNearZ;
+export const NEBULA_FAR_Z = WORLD_ANCHORS.nebulaFarZ;
+
+// ─── Derived art cues (scroll values computed from world anchors) ───────────
+// These REPLACE the hand-tuned scroll thresholds that used to live in the
+// shader (black-hole reveal) and the nebula component (dissolve). They are
+// computed from the nebula's physical position, so moving the nebula moves
+// the cues with it.
+// ─── Timeline cues (HARD-CODED scroll values) ──────────────────────────────
+// After repeated desync with derived/position-based timing, these are pinned
+// to explicit scroll points. They MUST match the nebula dissolve in
+// Nebula.tsx (DISSOLVE_START 0.05 → DISSOLVE_END 0.20). The nebula clears at
+// 0.20; the traversal phase ends there; the black hole finishes revealing
+// there. All three fire together because they share the same numbers.
+export const TIMELINE_CUES = {
+  /** Traversal begins just before the nebula (a touch after home settles). */
+  traversalStart: 0.05,
+  /** Camera is in the dense gas. */
+  nebulaEnter: 0.12,
+  /**
+   * Nebula reads as GONE here (0.220) — tuned by reading the live scroll
+   * value off the debug HUD as the gas cleared on screen. Traversal ends
+   * and the black hole finishes revealing at this same point.
+   */
+  nebulaExit: 0.210,
+  /** Black hole starts emerging from the gas. */
+  blackHoleRevealStart: 0.150,
+  /** Black hole fully revealed as the nebula reads as gone. */
+  blackHoleRevealEnd: 0.210,
+} as const;
+
+// ─── Derived phases ─────────────────────────────────────────────────────────
+// Phase scroll boundaries are no longer hand-tuned. The nebula-era phases
+// (traversal, revelation) are pinned to the nebula's physical position via
+// TIMELINE_CUES; the later phases are pinned to the disk-anchored camera
+// keyframes (CAMERA_KEYFRAMES, already derived from DISK_OUTER). Editing the
+// nebula anchors or the disk multipliers reflows every boundary in sync.
+//
+// KEY GUARANTEES this delivers:
+//  • traversal stays active from just before the nebula until its far edge,
+//    then revelation begins automatically AT the nebula exit — never out of
+//    step with the gas the camera is actually flying through.
+//  • the black-hole reveal (TIMELINE_CUES.blackHoleReveal*) is glued to the
+//    final third of the nebula, wherever the nebula sits.
+const KF = CAMERA_KEYFRAMES; // scrolls: [0]=0 [1]=.12 [2]=.32 [3]=.50 [4]=.66 [5]=.82
+export const PHASES: readonly PhaseConfig[] = [
+  {
+    id: "home",
+    label: "Home",
+    scrollStart: 0.0,
+    scrollEnd: 0.0,
+    gravity: 0.0,
+    cameraZ: WORLD_ANCHORS.cameraStartZ,
+  },
+  {
+    id: "awakening",
+    label: "Awakening",
+    scrollStart: 0.0,
+    // Awakening ends where Traversal begins — just BEFORE the nebula.
+    scrollEnd: TIMELINE_CUES.traversalStart,
+    gravity: 0.0,
+    cameraZ: KF[1].z,
+  },
+  {
+    id: "traversal",
+    label: "Traversal",
+    // Starts as the camera approaches the gas (a margin before the dense
+    // near edge) and ends exactly when the camera exits the far edge.
+    scrollStart: TIMELINE_CUES.traversalStart,
+    scrollEnd: TIMELINE_CUES.nebulaExit,
+    gravity: 0.0,
+    cameraZ: KF[2].z,
+  },
+  {
+    id: "revelation",
+    label: "Revelation",
+    // Begins exactly when the nebula clears — the BH is now visible.
+    scrollStart: TIMELINE_CUES.nebulaExit,
+    scrollEnd: KF[3].scroll,
+    gravity: 0.05,
+    cameraZ: KF[3].z,
+  },
+  {
+    id: "discovery",
+    label: "Discovery",
+    scrollStart: KF[3].scroll,
+    scrollEnd: KF[4].scroll,
+    gravity: 0.15,
+    cameraZ: KF[4].z,
+  },
+  {
+    id: "approach",
+    label: "Approach",
+    scrollStart: KF[4].scroll,
+    scrollEnd: KF[5].scroll,
+    gravity: 0.6,
+    cameraZ: KF[5].z,
+  },
+  {
+    id: "event-horizon",
+    label: "Event Horizon",
+    scrollStart: KF[5].scroll,
+    scrollEnd: 0.90,
+    gravity: 0.9,
+    cameraZ: KF[5].z,
+  },
+  {
+    id: "singularity",
+    label: "Singularity",
+    scrollStart: 0.90,
+    scrollEnd: 1.0,
+    gravity: 1.0,
+    cameraZ: BH_GEOMETRY.blackHoleZ,
+  },
+] as const;
 
 // ─── Orbital Approach (Event Horizon cinematic) ─────────────────────────────
 /**
@@ -269,7 +433,11 @@ export const CAMERA = {
    * the black hole despite the higher camera.
    */
   baseHeight: 5.0,
-  initialPosition: [0, 5.0, 50] as [number, number, number],
+  // Initial Z is derived from the first camera keyframe (the "home"
+  // position) so the camera always starts exactly where the scroll
+  // timeline begins — no jump on boot, and it auto-tracks any change to
+  // the black hole position or the distance multipliers.
+  initialPosition: [0, 5.0, CAMERA_KEYFRAMES[0].z] as [number, number, number],
 } as const;
 
 // ─── Scroll ─────────────────────────────────────────────────────────────────

@@ -10,8 +10,9 @@
  * - Ambient lighting: subtle purple wash
  * - 3D Text removed — all text handled by DOM SceneOverlay
  *
- * The nebula remains visible during discovery phase (partially
- * dissolved) for a seamless transition to the approach phase.
+ * The point lights are anchored to NEBULA_CENTER_Z so the internal glow
+ * tracks the nebula's world position — move the nebula in constants.ts and
+ * the lights follow it, instead of being left behind at a fixed Z.
  */
 
 "use client";
@@ -21,6 +22,7 @@ import { Group } from "three";
 import { useFrame } from "@react-three/fiber";
 
 import { Nebula } from "../objects/Nebula";
+import { NEBULA_CENTER_Z } from "@/lib/constants";
 
 interface NebulaSceneProps {
   active: boolean;
@@ -35,6 +37,10 @@ export function NebulaScene({ active }: NebulaSceneProps) {
     groupRef.current.visible = active;
   });
 
+  // Point-light Z positions are offsets from the nebula center, so the
+  // glow stays embedded in the cloud wherever the cloud is placed.
+  const cz = NEBULA_CENTER_Z;
+
   return (
     <group ref={groupRef}>
       {/* ─── Volumetric Nebula Cloud ─────────────────────────────── */}
@@ -43,23 +49,23 @@ export function NebulaScene({ active }: NebulaSceneProps) {
       {/* ─── Ambient Light: subtle purple cosmic wash ────────────── */}
       <ambientLight intensity={0.04} color="#1a0a2e" />
 
-      {/* ─── Point lights for internal nebula glow ───────────────── */}
+      {/* ─── Point lights for internal nebula glow (anchored) ────── */}
       <pointLight
-        position={[8, 5, 45]}
+        position={[8, 5, cz + 5]}
         intensity={0.8}
         color="#8b2a6b"
         distance={30}
         decay={2}
       />
       <pointLight
-        position={[-6, -3, 38]}
+        position={[-6, -3, cz - 2]}
         intensity={0.5}
         color="#3a1860"
         distance={25}
         decay={2}
       />
       <pointLight
-        position={[0, 8, 50]}
+        position={[0, 8, cz + 10]}
         intensity={0.3}
         color="#c45590"
         distance={20}

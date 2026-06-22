@@ -41,15 +41,15 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Vector3 } from "three";
 import { useExperienceStore } from "@/store/useExperienceStore";
-import { ORBIT } from "@/lib/constants";
+import { ORBIT, BLACK_HOLE_POSITION as BH_POS } from "@/lib/constants";
 import { lerp, smoothstep, easeInOutSine } from "@/lib/math";
 
 /**
- * Black hole world position.
- * Must match BH_Z in SceneManager.tsx, the BlackHole position prop,
- * and BLACK_HOLE_POSITION in Singularity.tsx.
+ * Black hole world position, derived from the single source of truth in
+ * constants.ts (BLACK_HOLE_POSITION). Wrapped in a Vector3 here for the
+ * three.js math used in the orbit calculations.
  */
-const BLACK_HOLE_POSITION = new Vector3(0, 0, -20);
+const BLACK_HOLE_POSITION = new Vector3(...BH_POS);
 
 /** Lifecycle states for the orbital sequence. */
 type OrbitState = "idle" | "running" | "completed";

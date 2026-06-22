@@ -38,8 +38,10 @@ import {
 import { useFrame } from "@react-three/fiber";
 import { useFBO } from "@react-three/drei";
 import { useExperienceStore } from "@/store/useExperienceStore";
+import { BLACK_HOLE_POSITION as BH_POS } from "@/lib/constants";
 
-const BLACK_HOLE_POSITION = new Vector3(0, 0, -20);
+// Derived from the single source of truth in constants.ts.
+const BLACK_HOLE_POSITION = new Vector3(...BH_POS);
 
 // ─── Vertex Shader (full-screen quad) ───────────────────────────────────────
 const vertexShader = /* glsl */ `

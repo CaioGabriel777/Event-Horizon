@@ -49,6 +49,8 @@ uniform float uInnerRadius;
 uniform float uOuterRadius;
 uniform float uFov;
 uniform float uScrollProgress;
+uniform float uRevealStart; // black-hole reveal fade-in start (world-anchored)
+uniform float uRevealEnd;   // black-hole reveal fade-in end (world-anchored)
 
 uniform sampler2D uGeodesicLUT;
 uniform float uUseLUT;
@@ -694,11 +696,11 @@ void main() {
         accAlpha = clamp(accAlpha + coronaIntensity * coronaGate * 0.6, 0.0, 1.0);
     }
 
-    // Reveal pacing: the nebula hides the black hole until near its end.
-    // With the redistributed phases the nebula/traversal now runs to
-    // ~0.32, so the hole fades in over 0.30 → 0.38 — emerging from behind
-    // the thinning gas right as revelation begins.
-    float masterOpacity = smoothstep(0.30, 0.38, uScrollProgress);
+    // Reveal pacing is WORLD-ANCHORED: uRevealStart/uRevealEnd are derived
+    // (in constants.ts) from the nebula's physical position — the fade-in
+    // tracks the final third of the nebula no matter where the nebula sits.
+    // No hand-tuned scroll numbers here anymore.
+    float masterOpacity = smoothstep(uRevealStart, uRevealEnd, uScrollProgress);
     float alpha = clamp(accAlpha, 0.0, 1.0) * masterOpacity;
 
     gl_FragColor = vec4(accColor, alpha);
