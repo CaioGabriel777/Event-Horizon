@@ -21,6 +21,9 @@ An immersive, cinematic, physically-based WebGL experience exploring the gravita
 - **Fiery Inner Corona**: A perspective-correct, `b`-based lensed inner ring of filamentary gas swirling around the event horizon, correctly depth-sorted behind the foreground disk.
 - **WASM Geodesic Precomputation**: A high-performance Rust module calculates the ray paths and intersections offline. This heavy computation runs in a **Web Worker**, ensuring the UI remains 100% responsive.
 - **Texture-Based Volumetric Nebula**: The introductory cosmic dust cloud utilizes heavily optimized instanced billboarding mapped with a pre-rendered smoke texture and a "Zero-Accumulation" fragment architecture.
+- **Geometry-Anchored Timeline**: The cinematic camera pacing and phase transitions are dynamically driven by physical world anchors (such as the accretion disk radius), ensuring the visual experience scales perfectly with geometry changes.
+- **Diegetic Helmet HUD**: An immersive, physical-feeling visor overlay displaying real-time telemetry (FPS, Gravity, Structural Integrity) that reacts dynamically to the time-dilation and gravitational forces of the approaching singularity.
+- **Gravitational Star Lensing**: Background celestial bodies and starfields are accurately warped and bent by the black hole's mass according to the Schwarzschild metric.
 
 ---
 
