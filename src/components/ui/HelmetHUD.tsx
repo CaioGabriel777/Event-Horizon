@@ -7,11 +7,6 @@
  *   - Interior foam padding, seams, and technical material textures
  *   - Left telemetry panel with 3D perspective curvature
  *   - Phase-reactive variant system (nominal / warning / danger)
- *
- * TIMELINE DEBUG: a development readout (top-right) shows the live scroll
- * value and every timeline cue, so the nebula/phase/reveal sync can be
- * tuned by READING numbers instead of guessing. Enable with env
- * NEXT_PUBLIC_TIMELINE_DEBUG=1 (or temporarily flip SHOW_TIMELINE_DEBUG).
  */
 
 "use client";
@@ -19,7 +14,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useExperienceStore } from "@/store/useExperienceStore";
-import { PHASES, TIMELINE_CUES } from "@/lib/constants";
+import { PHASES } from "@/lib/constants";
 import { HelmetShellSVG } from "./HelmetShellSVG";
 
 // ─── Design Tokens ──────────────────────────────────────────────────────────
@@ -34,11 +29,6 @@ const PANEL_BG = "rgba(2,8,20,0.5)";
 const BORDER = "rgba(255, 255, 255, 0.15)";
 const MONO = "'Courier New','Lucida Console',monospace";
 
-// Nebula dissolve window — keep in sync with Nebula.tsx (DISSOLVE_START/END).
-const NEBULA_DISSOLVE = { start: 0.10, end: 0.220 };
-// Force the timeline debug readout on without an env var by flipping this.
-const SHOW_TIMELINE_DEBUG = true;
-
 /** Maps experience phase to shell visual variant */
 function useShellVariant(phase: string, isSingularity: boolean) {
   return useMemo(() => {
@@ -46,25 +36,6 @@ function useShellVariant(phase: string, isSingularity: boolean) {
     if (phase === "approach" || phase === "event-horizon") return "warning" as const;
     return "nominal" as const;
   }, [phase, isSingularity]);
-}
-
-/** Single row of the timeline debug readout; highlights when scroll is in range. */
-function DebugRow({
-  label, start, end, scroll, color,
-}: { label: string; start: number; end: number; scroll: number; color: string }) {
-  const active = scroll >= start && scroll <= end;
-  return (
-    <div style={{
-      display: "flex", justifyContent: "space-between", gap: 10,
-      padding: "1px 5px", borderRadius: 3,
-      background: active ? color : "transparent",
-      color: active ? "#000" : "#9aa",
-      fontWeight: active ? 700 : 400,
-    }}>
-      <span>{label}</span>
-      <span>{start.toFixed(3)}–{end.toFixed(3)}</span>
-    </div>
-  );
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -88,14 +59,10 @@ export function HelmetHUD() {
   const gravity = useExperienceStore((s) => s.gravity);
   const phase = useExperienceStore((s) => s.phase);
   const isWhiteout = useExperienceStore((s) => s.isWhiteout);
-  const scrollProgress = useExperienceStore((s) => s.scrollProgress);
   const isSingularity = phase === "singularity";
   const isEventHorizon = phase === "event-horizon";
   const isDanger = isSingularity || isEventHorizon;
   const shellVariant = useShellVariant(phase, isSingularity);
-
-  const showTimelineDebug =
-    SHOW_TIMELINE_DEBUG || process.env.NEXT_PUBLIC_TIMELINE_DEBUG === "1";
 
   const whiteoutStart = useRef<number | null>(null);
 
@@ -229,24 +196,6 @@ export function HelmetHUD() {
 
   return (
     <>
-      {/* ─── Timeline Debug Readout (dev only) ───────────────────────── */}
-      {showTimelineDebug && (
-        <div style={{
-          position: "fixed", top: 12, right: 12, zIndex: 9999, width: 260,
-          padding: 10, borderRadius: 8, background: "rgba(0,0,0,0.82)",
-          border: "1px solid #333", font: `12px ${MONO}`, color: "#ddd",
-          pointerEvents: "none", backdropFilter: "blur(4px)",
-        }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>
-            scroll {scrollProgress.toFixed(3)}
-          </div>
-          <div style={{ marginBottom: 6, color: "#7cf" }}>phase: {phase}</div>
-          <DebugRow label="nebula dissolve" start={NEBULA_DISSOLVE.start} end={NEBULA_DISSOLVE.end} scroll={scrollProgress} color="#c45590" />
-          <DebugRow label="traversal" start={TIMELINE_CUES.traversalStart} end={TIMELINE_CUES.nebulaExit} scroll={scrollProgress} color="#5ac4a0" />
-          <DebugRow label="BH reveal" start={TIMELINE_CUES.blackHoleRevealStart} end={TIMELINE_CUES.blackHoleRevealEnd} scroll={scrollProgress} color="#c4a050" />
-        </div>
-      )}
-
       <AnimatePresence>
         {isHelmetOn && (
         <motion.div

@@ -77,7 +77,7 @@ uniform int   uFbmOctaves;
 // (b_capture = 3√3/2 × R ≈ 9.1).
 const float SCHWARZSCHILD_R = 3.5;
 const float DISK_INNER = 10.5;  // ~1.15× shadow — disk hugs the photon ring
-const float DISK_OUTER = 30.0;  // ~3.3× shadow — substantial ring, sphere still dominant
+const float DISK_OUTER = 36.0;  // ~4.0× shadow — slightly wider for better proportion
 const float PI = 3.14159265359;
 const float TAU = 6.28318530718;
 
@@ -220,12 +220,12 @@ vec4 sampleDiskAtAngle(float r, float angle, float diskSDF) {
 
     // FBM frequencies are scaled for the disk's world size (spans to r=30),
     // tuned so the gas reads as broad turbulent clouds at this scale.
-    float turbA = fbmAdaptive(rotA * 0.24);
-    float turbB = fbmAdaptive(rotB * 0.24 + 50.0);
+    float turbA = fbmAdaptive(rotA * 0.20);
+    float turbB = fbmAdaptive(rotB * 0.20 + 50.0);
     float turb = mix(turbA, turbB, 0.5);
 
-    float detailA = fbmAdaptive(rotA * 0.6 - uTime * 0.1);
-    float detailB = fbmAdaptive(rotB * 0.6 + 50.0 - uTime * 0.1);
+    float detailA = fbmAdaptive(rotA * 0.50 - uTime * 0.1);
+    float detailB = fbmAdaptive(rotB * 0.50 + 50.0 - uTime * 0.1);
     float detail = mix(detailA, detailB, 0.5);
 
     // Gas cloud density from FBM
@@ -510,7 +510,7 @@ vec4 renderWithRK4(vec2 uv) {
   //
   // The jump only happens when the gravity zone lies AHEAD of the ray
   // (tEnter > 0). Rays pointed away from the black hole are untouched.
-  const float GRAVITY_ZONE = 34.0; // covers DISK_OUTER (30) + margin; rays integrate the full disk
+  const float GRAVITY_ZONE = 42.0; // covers DISK_OUTER (36) + margin; rays integrate the full disk
   vec3 oc = pos - uBlackHolePos;
   float tCenter = -dot(oc, vel);              // param of closest approach
   if (tCenter > 0.0) {
