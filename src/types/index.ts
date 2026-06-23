@@ -60,6 +60,17 @@ export interface ExperienceState {
   /** Signal flag set by SingularityPass to instruct useScrollPhase to synchronously reset the DOM scroll */
   shouldResetScroll: boolean;
 
+  // ─── Lore: time dilation + data link (Unit-7 protocol) ───────────────
+  /** The probe's own clock in seconds — advances at real 1s/s. */
+  localTimeSec: number;
+  /** Earth's calendar year, derived from journey progress (→ 42026). */
+  earthYear: number;
+  /** DATA_LINK upload bar [0..1], tracks journey progress, hits 1 at horizon. */
+  dataLink: number;
+  /** False after a reset until scroll settles near the start — holds DATA_LINK at 0. */
+  dataLinkArmed: boolean;
+
+  isEpilogue: boolean;
   // Actions
   setScrollProgress: (v: number) => void;
   setPhase: (v: Phase) => void;
@@ -75,6 +86,11 @@ export interface ExperienceState {
   setSingularityProgress: (v: number) => void;
   setIsSingularityActive: (v: boolean) => void;
   setShouldResetScroll: (v: boolean) => void;
+  /** Advance the probe clock by deltaSec (called per-frame by the HUD). */
+  tickLocalTime: (deltaSec: number) => void;
+  /** Hard reset of lore state (DATA_LINK + clocks) for the post-singularity loop. */
+  resetLore: () => void;
+  setIsEpilogue: (v: boolean) => void;
 }
 
 /** Performance metrics for the tech dashboard */

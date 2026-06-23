@@ -21,6 +21,9 @@ An immersive, cinematic, physically-based WebGL experience exploring the gravita
 - **Fiery Inner Corona**: A perspective-correct, `b`-based lensed inner ring of filamentary gas swirling around the event horizon, correctly depth-sorted behind the foreground disk.
 - **WASM Geodesic Precomputation**: A high-performance Rust module calculates the ray paths and intersections offline. This heavy computation runs in a **Web Worker**, ensuring the UI remains 100% responsive.
 - **Texture-Based Volumetric Nebula**: The introductory cosmic dust cloud utilizes heavily optimized instanced billboarding mapped with a pre-rendered smoke texture and a "Zero-Accumulation" fragment architecture.
+- **Geometry-Anchored Timeline**: The cinematic camera pacing and phase transitions are dynamically driven by physical world anchors (such as the accretion disk radius), ensuring the visual experience scales perfectly with geometry changes.
+- **Diegetic Helmet HUD (Unit-7 Protocol)**: An immersive, physical-feeling visor overlay displaying real-time telemetry, DATA_LINK upload progress, and dual time-dilation clocks (Local Probe Time vs. Earth Year) that react dynamically to the gravitational forces of the approaching singularity.
+- **Gravitational Star Lensing**: Background celestial bodies and starfields are accurately warped and bent by the black hole's mass according to the Schwarzschild metric.
 
 ---
 
@@ -124,7 +127,7 @@ The experience is driven entirely by scrolling.
 3. **Phase 3 (Discovery)**: The black hole reveals its accretion disk.
 4. **Phase 4 (Approach)**: Time dilates as you approach the ISCO.
 5. **Phase 5 (Event Horizon)**: The point of no return. The camera leaves the rail and begins an orbital spiral.
-6. **Phase 6 (Singularity)**: You cross the threshold. The screen fades to black, and the universe resets.
+6. **Phase 6 (Singularity)**: You cross the threshold. The screen fades to pitch black, freezing the simulation and triggering the final Epilogue transmission from Earth.
 
 ---
 

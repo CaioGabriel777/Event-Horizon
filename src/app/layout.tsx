@@ -17,7 +17,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Event Horizon — Immersive WebGL Experience",
+  title: "Event Horizon",
   description:
     "A cinematic journey through spacetime. Traverse a nebula, witness gravitational lensing, and approach a supermassive black hole in this real-time WebGL experience built with React Three Fiber.",
   keywords: [
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "Caio Amorim" }],
   openGraph: {
-    title: "Event Horizon — Immersive WebGL Experience",
+    title: "Event Horizon",
     description:
       "A cinematic journey into a supermassive black hole. Real-time WebGL with custom GLSL shaders.",
     type: "website",

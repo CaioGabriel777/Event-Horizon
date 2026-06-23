@@ -83,6 +83,7 @@ function LoadingFallback() {
 // ─── Main Experience Component ──────────────────────────────────────────────
 
 import { Loader } from "@react-three/drei";
+import { Epilogue } from "../ui/Epilogue";
 
 export function Experience() {
   const dpr = useExperienceStore((s) => s.dpr);
@@ -95,6 +96,8 @@ export function Experience() {
       style={{ opacity: isReady ? 1 : 0, transition: 'opacity 0.3s ease' }}
     >
       <HelmetHUD />
+      
+      <Epilogue />
 
       <Canvas
         dpr={dpr}

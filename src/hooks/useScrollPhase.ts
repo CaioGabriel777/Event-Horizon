@@ -50,7 +50,8 @@ export function useScrollPhase() {
     // Lock scrolling during the cinematic sequences.
     // isOrbitActive:       event-horizon orbital approach (point of no return)
     // isSingularityActive: 4-act collapse + blackout reset window
-    if (state.isOrbitActive || state.isSingularityActive) {
+    // isBriefingOpen:      open notice - scroll lock
+    if (state.isOrbitActive || state.isSingularityActive || state.isBriefingOpen) {
       scroll.el.style.overflow = "hidden";
       return;
     }

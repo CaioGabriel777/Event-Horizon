@@ -1,12 +1,17 @@
 /**
  * HelmetHUD — Immersive Astronaut Visor Overlay
  * ============================================================================
- * Diegetic UI simulating a physical helmet visor with:
- *   - Hexagonal SVG shell via HelmetShellSVG (CSS variable theming)
- *   - Layered vignette, glass reflections, chromatic aberrations
- *   - Interior foam padding, seams, and technical material textures
- *   - Left telemetry panel with 3D perspective curvature
- *   - Phase-reactive variant system (nominal / warning / danger)
+ * Diegetic UI simulating a physical helmet visor.
+ *
+ * LORE INTEGRATION (Unit-7 protocol):
+ *  - Telemetry panel (left) now carries the TWO DILATION CLOCKS:
+ *      LOCAL_TIME  — the probe's clock, ticking at a calm 1s/s.
+ *      EARTH_SYNC  — Earth's year, running away toward 42,026 as you fall in.
+ *    The old FPS/GRAVITY/INTEGRITY readouts remain as "useful-useless"
+ *    technical flavor beneath them.
+ *  - The bottom-center indicator is now the DATA_LINK upload bar (replacing
+ *    "PHASE: X/6"): the probe streaming anomaly data home, filling to 100%
+ *    at the horizon crossing.
  */
 
 "use client";
@@ -14,7 +19,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useExperienceStore } from "@/store/useExperienceStore";
-import { PHASES } from "@/lib/constants";
 import { HelmetShellSVG } from "./HelmetShellSVG";
 
 // ─── Design Tokens ──────────────────────────────────────────────────────────
@@ -25,9 +29,67 @@ const C_DIM = "rgba(255, 255, 255, 0.55)";
 const OK = "#4ade80";
 const WARN = "#ffaf38";
 const DANGER = "#ff6b6b";
+const TIME_AMBER = "#ffd27c"; // EARTH_SYNC runaway clock tint
 const PANEL_BG = "rgba(2,8,20,0.5)";
 const BORDER = "rgba(255, 255, 255, 0.15)";
 const MONO = "'Courier New','Lucida Console',monospace";
+
+// ─── Phase Briefings ─────────────────────────────────────────────────────────
+// Clickable intel cards, one per phase, shown beneath the telemetry panel.
+// Opening one locks the scroll (isBriefingOpen) so the user reads it in place.
+// Figures are the real physics of a ~10⁷ M☉ supermassive black hole.
+type Briefing = {
+  tag: string; // small label on the trigger button
+  title: string;
+  accent: string;
+  lines?: { label?: string; value: string }[];
+  body?: string;
+  equation?: boolean; // render the dilation equation block
+};
+const PHASE_BRIEFINGS: Record<string, Briefing> = {
+  traversal: {
+    tag: "TIME DILATION",
+    title: "RELATIVISTIC TIME DILATION",
+    accent: "#9aa6b2",
+    body:
+      "Near a massive body, time itself slows. A clock deep in the gravity well ticks slower than one far away. As UNIT-7 falls toward the anomaly, every second aboard stretches into far longer back on Earth.",
+    equation: true,
+  },
+  revelation: {
+    tag: "TARGET: LETHE",
+    title: "ANOMALY // LETHE",
+    accent: "#e8e6e3",
+    lines: [
+      { label: "DESIGNATION", value: "LETHE (river of oblivion)" },
+      { label: "CLASS", value: "Supermassive black hole" },
+      { label: "MASS", value: "1.0 x 10^7 M\u2609" },
+      { label: "SCHWARZSCHILD R", value: "~0.20 AU (29.5M km)" },
+    ],
+    body:
+      "Named for the mythic river whose waters erase all memory: nothing that crosses LETHE's horizon ever returns to the universe that knew it.",
+  },
+  discovery: {
+    tag: "LENSING",
+    title: "GRAVITATIONAL LENSING",
+    accent: "#cbd5e1",
+    lines: [{ label: "PHOTON RING", value: "light orbiting at 1.5 rs" }],
+    body:
+      "LETHE's gravity bends the path of light itself. The glowing ring is the accretion disk BEHIND the hole, its light wrapped over the top and under the bottom — you are seeing the far side through curved spacetime.",
+  },
+  approach: {
+    tag: "\u26a0 HAZARD",
+    title: "EXTREME ENVIRONMENT",
+    accent: WARN,
+    lines: [
+      { label: "DISK TEMP", value: "~10^7 K (X-ray)" },
+      { label: "SURFACE GRAVITY", value: "1.5 x 10^5 G" },
+      { label: "ISCO VELOCITY", value: "0.41 c" },
+      { label: "TIDAL SHEAR", value: "RISING - structural" },
+    ],
+    body:
+      "The inner disk glows in X-rays. Gravitational acceleration at the horizon exceeds a hundred thousand Earth gravities. Spaghettification is imminent.",
+  },
+};
 
 /** Maps experience phase to shell visual variant */
 function useShellVariant(phase: string, isSingularity: boolean) {
@@ -38,13 +100,52 @@ function useShellVariant(phase: string, isSingularity: boolean) {
   }, [phase, isSingularity]);
 }
 
+/** Format the probe clock (seconds) as HH:MM:SS.cc — a calm, steady readout. */
+function formatLocalTime(totalSec: number): string {
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = Math.floor(totalSec % 60);
+  const cs = Math.floor((totalSec % 1) * 100);
+  const p2 = (n: number) => n.toString().padStart(2, "0");
+  return `${p2(h)}:${p2(m)}:${p2(s)}.${p2(cs)}`;
+}
+
+/** Format Earth's year with a thousands separator (e.g. "YEAR 12,480"). */
+function formatEarthYear(year: number): string {
+  return `YEAR ${Math.floor(year).toLocaleString("en-US")}`;
+}
+
+// Realistic surface gravity readout. The internal `gravity` (0→1) maps
+// exponentially from 1 G (probe at rest, human-normal) to ~1.5×10⁵ G — the
+// true Newtonian acceleration at the horizon of a 10⁷ M☉ black hole.
+const G_DISPLAY_MIN = 1.0;
+const G_DISPLAY_MAX = 1.5e5;
+const SUP = ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"];
+function toSuperscript(n: number): string {
+  return String(n).split("").map((d) => SUP[+d] ?? d).join("");
+}
+/** Maps internal gravity [0..1] to a realistic G value and formats it:
+ *  plain (e.g. "12.4 G") under 10,000, scientific (e.g. "1.5×10⁵ G") above. */
+function formatGravity(gravity: number): string {
+  const g = G_DISPLAY_MIN * Math.pow(G_DISPLAY_MAX / G_DISPLAY_MIN, clamp01(gravity));
+  if (g < 10000) {
+    return `${g < 100 ? g.toFixed(1) : Math.round(g).toLocaleString("en-US")} G`;
+  }
+  const exp = Math.floor(Math.log10(g));
+  const mantissa = (g / Math.pow(10, exp)).toFixed(1);
+  return `${mantissa}×10${toSuperscript(exp)} G`;
+}
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export function HelmetHUD() {
   // ─── State & Refs ─────────────────────────────────────────────────────────
 
   const [fps, setFps] = useState(60);
-  const [showApproachWarning, setShowApproachWarning] = useState(false);
+  const [briefingOpen, setBriefingOpen] = useState(false);
 
   const hudRef = useRef<HTMLDivElement>(null!);
   const mouse = useRef({ x: 0, y: 0 });
@@ -58,93 +159,61 @@ export function HelmetHUD() {
   const isHelmetOn = useExperienceStore((s) => s.isHelmetOn);
   const gravity = useExperienceStore((s) => s.gravity);
   const phase = useExperienceStore((s) => s.phase);
-  const isWhiteout = useExperienceStore((s) => s.isWhiteout);
+  // Lore clocks + data link
+  const localTimeSec = useExperienceStore((s) => s.localTimeSec);
+  const earthYear = useExperienceStore((s) => s.earthYear);
+  const dataLink = useExperienceStore((s) => s.dataLink);
+  // Act 4: the orbit engaging IS the "over the horizon" moment (it also
+  // locks the scroll), so the crossed-horizon warning hooks this flag.
+  const isOrbitActive = useExperienceStore((s) => s.isOrbitActive);
   const isSingularity = phase === "singularity";
   const isEventHorizon = phase === "event-horizon";
   const isDanger = isSingularity || isEventHorizon;
   const shellVariant = useShellVariant(phase, isSingularity);
 
-  const whiteoutStart = useRef<number | null>(null);
+  // Act 4 warning: from orbit engage through the singularity, until the
+  // blackout swallows everything.
+  const horizonCrossed = isOrbitActive || isSingularity;
 
+  // How fast EARTH_SYNC is running away — drives the "spinning" emphasis.
+  const dilationActive = dataLink > 0.45; // Act 3 onward
+  const dilationExtreme = dataLink > 0.85; // Act 4-5: the unreadable blur
+
+  // The briefing available for the CURRENT phase (null if none).
+  const briefing = PHASE_BRIEFINGS[phase] ?? null;
+
+  // Close any open briefing when the phase changes (the card belongs to its
+  // phase). And keep the store's scroll-lock flag in sync with the modal.
   useEffect(() => {
-    if (isWhiteout) {
-      whiteoutStart.current = Date.now();
-    } else {
-      whiteoutStart.current = null;
-    }
-  }, [isWhiteout]);
-
+    setBriefingOpen(false);
+  }, [phase]);
   useEffect(() => {
-    if (!isWhiteout) return;
-    const timer = setTimeout(() => {
-      console.warn("[Whiteout] circuit breaker ativado — forçando release");
-      useExperienceStore.getState().setIsWhiteout(false);
-    }, 3000);
-    return () => clearTimeout(timer);
-  }, [isWhiteout]);
+    useExperienceStore.getState().setIsBriefingOpen(briefingOpen);
+  }, [briefingOpen]);
 
-  // Phase Information
-  const hudPhases = PHASES.slice(2); // Skip home and awakening for HUD count
-  const hudPhaseIndex = hudPhases.findIndex((p) => p.id === phase);
-  const phaseLabel = hudPhaseIndex >= 0
-    ? `PHASE: ${hudPhaseIndex + 1}/${hudPhases.length} — ${hudPhases[hudPhaseIndex].label.toUpperCase()}`
-    : "STANDBY";
-
-  // Right Panel Content (Migrated from SceneOverlay)
-  let rightPanelContent = null;
-  if (phase === "traversal") {
-    rightPanelContent = {
-      title: "PHASE I",
-      header: "TRAVERSAL",
-      desc: "Entering nebulous volume. Visibility restricted.",
-      color: C_BRIGHT,
-    };
-  } else if (phase === "revelation") {
-    rightPanelContent = {
-      title: "PHASE II",
-      header: "REVELATION",
-      desc: "Nebula thinning. Massive structure detected ahead.",
-      color: C_BRIGHT,
-    };
-  } else if (phase === "discovery") {
-    rightPanelContent = {
-      title: "PHASE III",
-      header: "DISCOVERY",
-      desc: "Light bends. Space warps. Something massive lies ahead.",
-      color: C_BRIGHT,
-    };
-  } else if (phase === "approach") {
-    rightPanelContent = {
-      title: "PHASE IV",
-      header: "APPROACH",
-      desc: "The fabric of spacetime stretches.",
-      color: WARN,
-    };
-  } else if (phase === "event-horizon") {
-    rightPanelContent = {
-      title: "PHASE V",
-      header: "EVENT HORIZON",
-      desc: "Extreme gravitational lensing detected.",
-      color: DANGER,
-    };
-  }
-
-  // Gravity display: 1.00G at rest → ramps up with store gravity
-  const gravityDisplay = `${(1.0 + gravity * 99.0).toFixed(1)}G`;
+  // Gravity / integrity (kept as technical flavor)
+  const gravityDisplay = formatGravity(gravity);
   const gravityColor = gravity > 0.7 ? DANGER : gravity > 0.3 ? WARN : OK;
-
-  // Integrity: drops as gravity increases
   const integrityValue = Math.max(0, Math.round(100 - gravity * 100));
   const integrityColor = integrityValue < 30 ? DANGER : integrityValue < 60 ? WARN : OK;
   const integrityLabel = integrityValue < 30 ? "CRITICAL" : integrityValue < 60 ? "UNSTABLE" : "NOMINAL";
 
-  // ─── FPS Counter ──────────────────────────────────────────────────────────
+  // DATA_LINK percent
+  const dataPct = Math.round(dataLink * 100);
+  const dataColor = dataPct >= 100 ? DANGER : dataPct > 70 ? WARN : OK;
 
+  // ─── FPS Counter + LOCAL_TIME tick ────────────────────────────────────────
   useEffect(() => {
     let animId: number;
+    let prev = performance.now();
     const tick = () => {
       frames.current++;
       const now = performance.now();
+      // Advance the probe clock by real elapsed time (calm 1s/s).
+      const dt = (now - prev) / 1000;
+      prev = now;
+      useExperienceStore.getState().tickLocalTime(dt);
+
       if (now - lastTime.current >= 1000) {
         setFps(frames.current);
         frames.current = 0;
@@ -157,7 +226,6 @@ export function HelmetHUD() {
   }, []);
 
   // ─── Global Keyboard Toggle ───────────────────────────────────────────────
-
   useEffect(() => {
     const fn = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() === "h") {
@@ -169,7 +237,6 @@ export function HelmetHUD() {
   }, []);
 
   // ─── Parallax Animation Loop ──────────────────────────────────────────────
-
   useEffect(() => {
     if (!isHelmetOn) return;
     const onMove = (e: MouseEvent) => {
@@ -193,7 +260,6 @@ export function HelmetHUD() {
   }, [isHelmetOn]);
 
   // ─── Render ───────────────────────────────────────────────────────────────
-
   return (
     <>
       <AnimatePresence>
@@ -206,283 +272,240 @@ export function HelmetHUD() {
           className="hidden md:block"
           style={{ position: "fixed", inset: 0, zIndex: 40, overflow: "hidden", pointerEvents: "none", contain: "strict" }}
         >
-          {/* ─── Diegetic CSS Keyframes ─────────────────────────────────── */}
           <style>{`
-            @keyframes condense {
-              0%, 100% { opacity: 0.015; }
-              50% { opacity: 0.03; }
-            }
-            @keyframes scanMove {
-              0% { transform: translateY(-100%); }
-              100% { transform: translateY(100vh); }
-            }
-            @keyframes glow {
-              0%, 100% { opacity: 1; box-shadow: 0 0 10px ${C_BRIGHT}; }
-              50% { opacity: 0.5; box-shadow: 0 0 4px ${C_BRIGHT}88; }
-            }
-            @keyframes dangerPulseFast {
-              0%, 100% { opacity: 1; box-shadow: 0 0 15px ${DANGER}; background: ${DANGER}; }
-              50% { opacity: 0.3; box-shadow: 0 0 5px ${DANGER}44; background: ${DANGER}88; }
-            }
+            @keyframes scanMove { 0% { transform: translateY(-100%);} 100% { transform: translateY(100vh);} }
+            @keyframes glow { 0%,100%{opacity:1;box-shadow:0 0 10px ${C_BRIGHT};}50%{opacity:.5;box-shadow:0 0 4px ${C_BRIGHT}88;} }
+            @keyframes dangerPulseFast { 0%,100%{opacity:1;box-shadow:0 0 15px ${DANGER};background:${DANGER};}50%{opacity:.3;box-shadow:0 0 5px ${DANGER}44;background:${DANGER}88;} }
+            @keyframes earthFlicker { 0%,100%{opacity:1;}50%{opacity:0.82;} }
+            @keyframes chromaShift { 0%,100%{text-shadow:0 0 4px ${TIME_AMBER}66, 1px 0 ${DANGER}, -1px 0 #4cf;}50%{text-shadow:0 0 6px ${TIME_AMBER}88, -1px 0 ${DANGER}, 1px 0 #4cf;} }
+            @keyframes horizonFlash { 0%,100%{opacity:1;} 50%{opacity:0.35;} }
+            @keyframes horizonBgPulse { 0%,100%{background:rgba(140,0,0,0.18);} 50%{background:rgba(200,20,20,0.34);} }
+            @keyframes briefPulse { 0%,100%{filter:brightness(1);} 50%{filter:brightness(1.35);} }
+            @keyframes briefBlink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
           `}</style>
 
-          {/* ─── Aggressive Danger State ─────────────────────────────── */}
-          <div style={{
-            position: "absolute", inset: 0, zIndex: 35, pointerEvents: "none",
-            background: "radial-gradient(ellipse at center, transparent 40%, rgba(200,30,30,0.08) 100%)",
-            opacity: isDanger ? 1 : 0,
-            transition: "opacity 0.5s ease"
-          }} />
+          <div style={{ position: "absolute", inset: 0, zIndex: 35, pointerEvents: "none", background: "radial-gradient(ellipse at center, transparent 40%, rgba(200,30,30,0.08) 100%)", opacity: isDanger ? 1 : 0, transition: "opacity 0.5s ease" }} />
 
-          {/* ─── Layer 1: Physical Helmet Shell (SVG) ────────────────────── */}
           <HelmetShellSVG variant={shellVariant} />
 
-          {/* ─── Layer 1.4: Scan Beam (Hardware Accelerated) ─────────── */}
-          <div style={{
-            position: "absolute", top: 0, left: 0, right: 0, height: 2, zIndex: 58, pointerEvents: "none",
-            background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)",
-            animation: "scanMove 8s linear infinite",
-            willChange: "transform",
-          }} />
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, zIndex: 58, pointerEvents: "none", background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)", animation: "scanMove 8s linear infinite", willChange: "transform" }} />
 
-          {/* ─── Layer 2: Parallax Telemetry ─────────────────────────────── */}
+          {/* ─── Act 4: EVENT HORIZON CROSSED — minimalist top banner ───── */}
+          <AnimatePresence>
+            {horizonCrossed && (
+              <motion.div
+                key="horizon-crossed"
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.35 }}
+                style={{
+                  position: "absolute", top: "5vh",
+                  left: 0, right: 0, marginInline: "auto",
+                  width: "fit-content", zIndex: 70,
+                  pointerEvents: "none",
+                  display: "flex", alignItems: "center", gap: 12,
+                  fontFamily: MONO,
+                  padding: "9px 22px",
+                  borderRadius: 4,
+                  border: "1.5px solid rgba(255,43,43,0.85)",
+                  background: "rgba(50,0,0,0.6)",
+                  boxShadow: "0 0 28px rgba(255,0,0,0.45), inset 0 0 12px rgba(255,0,0,0.15)",
+                  animation: "horizonFlash 0.9s steps(1) infinite",
+                }}
+              >
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#ff2b2b", boxShadow: "0 0 10px #ff2b2b" }} />
+                <span style={{ fontSize: 13, fontWeight: "bold", letterSpacing: "0.24em", color: "#ff7070", textShadow: "0 0 10px rgba(255,0,0,0.8)" }}>
+                  EVENT HORIZON CROSSED · NO ESCAPE VECTOR
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div ref={hudRef} style={{ position: "absolute", inset: 0, zIndex: 50, willChange: "transform" }}>
 
             {/* ─── Left Telemetry Panel ──────────────────────────────────── */}
             <div style={{
-              position: "absolute",
-              left: "8vw", top: "50%",
-              transform: "translateY(-50%) rotateY(12deg)",
-              transformOrigin: "right center",
-              width: 160,
-              background: PANEL_BG,
+              position: "absolute", left: "5vw", top: "50%",
+              transform: "translateY(-50%) rotateY(12deg)", transformOrigin: "right center",
+              width: 178, background: PANEL_BG,
               border: `1px solid ${isDanger ? "rgba(239,68,68,0.3)" : BORDER}`,
-              borderRadius: 6,
-              padding: "14px 16px",
-              fontFamily: MONO,
-              boxShadow: isDanger
-                ? "0 0 20px rgba(239,68,68,0.1), inset 0 0 10px rgba(0,0,0,0.6)"
-                : "0 0 20px rgba(0,0,0,0.3), inset 0 0 10px rgba(0,0,0,0.6)",
+              borderRadius: 6, padding: "14px 16px", fontFamily: MONO,
+              boxShadow: isDanger ? "0 0 20px rgba(239,68,68,0.1), inset 0 0 10px rgba(0,0,0,0.6)" : "0 0 20px rgba(0,0,0,0.3), inset 0 0 10px rgba(0,0,0,0.6)",
             }}>
-              {/* Panel header & Signal */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 10 }}>
-                <div style={{
-                  fontSize: 10, color: isDanger ? DANGER : C_BRIGHT, letterSpacing: "0.25em",
-                  textShadow: isDanger ? `0 0 4px ${DANGER}88` : `0 0 4px ${C_BRIGHT}44`,
-                }}>
+                <div style={{ fontSize: 10, color: isDanger ? DANGER : C_BRIGHT, letterSpacing: "0.25em", textShadow: isDanger ? `0 0 4px ${DANGER}88` : `0 0 4px ${C_BRIGHT}44` }}>
                   {isDanger ? "⚠ WARNING" : "TELEMETRY"}
                 </div>
                 <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 14 }}>
                   {[1, 2, 3, 4].map((bar) => {
                     const isOn = gravity < (1.0 - (bar * 0.2));
-                    return <div key={bar} style={{ width: 6, height: 4 + bar * 3, background: isOn ? (isDanger ? DANGER : OK) : "rgba(255,255,255,0.15)", borderRadius: 1 }} />
+                    return <div key={bar} style={{ width: 6, height: 4 + bar * 3, background: isOn ? (isDanger ? DANGER : OK) : "rgba(255,255,255,0.15)", borderRadius: 1 }} />;
                   })}
                 </div>
               </div>
               <div style={{ borderBottom: `1px solid ${isDanger ? "rgba(239,68,68,0.3)" : C_DIM}`, marginBottom: 14 }} />
 
-              {/* FPS */}
+              {/* LOCAL_TIME — the probe's calm clock */}
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 9, color: C_LABEL, letterSpacing: "0.15em", marginBottom: 3 }}>FPS</div>
-                <div style={{
-                  fontSize: 18, fontWeight: "bold", letterSpacing: "0.1em",
-                  color: fps >= 50 ? OK : fps >= 30 ? WARN : DANGER,
-                  textShadow: `0 0 4px ${fps >= 50 ? "rgba(74,222,128,0.3)" : fps >= 30 ? "rgba(255,175,56,0.3)" : "rgba(255,107,107,0.3)"}`,
-                }}>
-                  {fps}
-                </div>
-                <div style={{ height: 2, borderRadius: 1, marginTop: 4, width: "100%", background: "rgba(255,255,255,0.1)", overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${Math.min(100, (fps / 60) * 100)}%`, background: fps >= 50 ? OK : fps >= 30 ? WARN : DANGER }} />
+                <div style={{ fontSize: 9, color: C_LABEL, letterSpacing: "0.15em", marginBottom: 3 }}>LOCAL_TIME</div>
+                <div style={{ fontSize: 16, fontWeight: "bold", letterSpacing: "0.06em", color: C_BRIGHT, textShadow: `0 0 4px ${C_BRIGHT}33` }}>
+                  {formatLocalTime(localTimeSec)}
                 </div>
               </div>
 
-              {/* GRAVITY */}
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 9, color: C_LABEL, letterSpacing: "0.15em", marginBottom: 3 }}>GRAVITY</div>
-                <div style={{
-                  fontSize: 18, fontWeight: "bold", letterSpacing: "0.1em",
-                  color: gravityColor,
-                  textShadow: `0 0 4px ${gravityColor}44`,
-                }}>
-                  {gravityDisplay}
+              {/* EARTH_SYNC — Earth's runaway year */}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 9, color: C_LABEL, letterSpacing: "0.15em", marginBottom: 3 }}>
+                  EARTH_SYNC
+                  {dilationActive && <span style={{ float: "right", color: TIME_AMBER, opacity: 0.8 }}>⟳ DILATING</span>}
                 </div>
+                <div style={{
+                  fontSize: 16, fontWeight: "bold", letterSpacing: "0.06em",
+                  color: TIME_AMBER,
+                  textShadow: `0 0 5px ${TIME_AMBER}66`,
+                  animation: dilationExtreme ? "chromaShift 0.25s infinite" : dilationActive ? "earthFlicker 0.6s infinite" : "none",
+                  filter: dilationExtreme ? "blur(0.4px)" : "none",
+                }}>
+                  {formatEarthYear(earthYear)}
+                </div>
+              </div>
+
+              <div style={{ borderBottom: `1px solid ${C_DIM}`, opacity: 0.4, marginBottom: 12 }} />
+
+              {/* FPS / GRAVITY / INTEGRITY — technical flavor */}
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 9, color: C_LABEL, letterSpacing: "0.15em", marginBottom: 3 }}>GRAVITY</div>
+                <div style={{ fontSize: 16, fontWeight: "bold", letterSpacing: "0.1em", color: gravityColor, textShadow: `0 0 4px ${gravityColor}44` }}>{gravityDisplay}</div>
                 <div style={{ height: 2, borderRadius: 1, marginTop: 4, width: "100%", background: "rgba(255,255,255,0.1)", overflow: "hidden" }}>
                   <div style={{ height: "100%", width: `${Math.min(100, gravity * 100)}%`, background: gravityColor }} />
                 </div>
               </div>
-
-              {/* INTEGRITY */}
               <div>
                 <div style={{ fontSize: 9, color: C_LABEL, letterSpacing: "0.15em", marginBottom: 3 }}>
-                  INTEGRITY
-                  <span style={{ float: "right", opacity: 0.6 }}>{integrityLabel}</span>
+                  INTEGRITY<span style={{ float: "right", opacity: 0.6 }}>{integrityLabel}</span>
                 </div>
-                <div style={{
-                  fontSize: 18, fontWeight: "bold", letterSpacing: "0.1em",
-                  color: integrityColor,
-                  textShadow: `0 0 4px ${integrityColor}44`,
-                }}>
-                  {integrityValue}%
-                </div>
+                <div style={{ fontSize: 16, fontWeight: "bold", letterSpacing: "0.1em", color: integrityColor, textShadow: `0 0 4px ${integrityColor}44` }}>{integrityValue}%</div>
                 <div style={{ height: 2, borderRadius: 1, marginTop: 4, width: "100%", background: "rgba(255,255,255,0.1)", overflow: "hidden" }}>
                   <div style={{ height: "100%", width: `${integrityValue}%`, background: integrityColor }} />
                 </div>
               </div>
-            </div>
-
-            {/* ─── Bottom Center Phase Indicator ─────────────────────────── */}
-            <div style={{
-              position: "absolute",
-              bottom: "5vh", left: "50%",
-              transform: "translateX(-50%)",
-              background: PANEL_BG,
-              border: `1px solid ${isDanger ? "rgba(239,68,68,0.3)" : BORDER}`,
-              borderRadius: 6,
-              padding: "12px 24px",
-              fontFamily: MONO,
-              boxShadow: isDanger
-                ? "0 0 30px rgba(239,68,68,0.1), inset 0 0 20px rgba(0,0,0,0.4)"
-                : "0 0 30px rgba(0,0,0,0.5), inset 0 0 20px rgba(0,0,0,0.3)",
-              display: "flex",
-              alignItems: "center",
-              gap: 16,
-            }}>
-              <div style={{
-                width: 8, height: 8, borderRadius: "50%",
-                background: isDanger ? DANGER : C_BRIGHT,
-                animation: isDanger ? "dangerPulseFast 0.8s infinite" : "glow 2s ease-in-out infinite",
-              }} />
-              <div style={{
-                fontSize: 12, color: isDanger ? DANGER : C_BRIGHT, letterSpacing: "0.2em",
-                textShadow: isDanger ? "0 0 8px rgba(239,68,68,0.4)" : `0 0 8px ${C_BRIGHT}44`,
-              }}>
-                {phaseLabel}
+              {/* tiny FPS line */}
+              <div style={{ marginTop: 8, fontSize: 8, color: C_DIM, letterSpacing: "0.1em" }}>
+                SYS {fps}FPS
               </div>
             </div>
 
-            {/* ─── Right Telemetry Panel (Phase Intel) ───────────────────── */}
+            {/* ─── Phase Briefing trigger (under the telemetry panel) ─────── */}
             <AnimatePresence>
-              {rightPanelContent && (
-                <motion.div
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  className="text-right" style={{
-                    position: "absolute",
-                    right: "8vw", top: "50%",
-                    transform: "translateY(-50%)",
-                    width: 260,
-                    textShadow: `0 0 10px ${rightPanelContent.color}44`,
+              {briefing && !briefingOpen && (
+                <motion.button
+                  key={`brief-btn-${phase}`}
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  transition={{ duration: 0.4 }}
+                  onClick={() => setBriefingOpen(true)}
+                  style={{
+                    position: "absolute", left: "5vw", top: "calc(50% + 196px)",
+                    transform: "rotateY(12deg)", transformOrigin: "right center",
+                    width: 178, boxSizing: "border-box",
+                    background: `linear-gradient(135deg, ${briefing.accent}33, ${briefing.accent}14)`,
+                    border: `1.5px solid ${briefing.accent}`,
+                    borderRadius: 6, padding: "11px 14px", fontFamily: MONO,
+                    color: briefing.accent, cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 8,
+                    boxShadow: `0 0 16px ${briefing.accent}55, inset 0 0 12px ${briefing.accent}18`,
+                    pointerEvents: "auto",
+                    animation: "briefPulse 2s ease-in-out infinite",
                   }}
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.97 }}
                 >
-                  <div
-                    className="text-xs tracking-[0.6em] uppercase mb-3"
-                    style={{ color: rightPanelContent.color, opacity: 0.8 }}
-                  >
-                    {rightPanelContent.title}
-                  </div>
-                  <div
-                    className="text-2xl md:text-3xl font-light tracking-[0.1em]"
-                    style={{ color: rightPanelContent.color }}
-                  >
-                    {rightPanelContent.header}
-                  </div>
-                  <div
-                    className="text-xs mt-3 ml-auto"
-                    style={{ color: rightPanelContent.color, opacity: 0.6 }}
-                  >
-                    {rightPanelContent.desc}
-                  </div>
-                </motion.div>
+                  <span style={{ fontSize: 14, animation: "briefBlink 1.1s steps(1) infinite" }}>▣</span>
+                  <span style={{ fontSize: 11, fontWeight: "bold", letterSpacing: "0.16em", textShadow: `0 0 8px ${briefing.accent}88` }}>{briefing.tag}</span>
+                  <span style={{ marginLeft: "auto", fontSize: 9, opacity: 0.85, letterSpacing: "0.1em" }}>▸ OPEN</span>
+                </motion.button>
               )}
             </AnimatePresence>
 
-            {/* ─── Approach Phase Warning System ─────────────────────────── */}
-            <AnimatePresence>
-              {phase === "approach" && !showApproachWarning && (
-                <motion.button
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  onClick={() => setShowApproachWarning(true)}
-                  style={{
-                    position: "absolute",
-                    left: "8vw", top: "70%",
-                    transform: "translateY(-50%) rotateY(12deg)",
-                    transformOrigin: "right center",
-                    background: "rgba(255,175,56,0.15)",
-                    border: `1px solid ${WARN}`,
-                    borderRadius: 4,
-                    padding: "8px 16px",
-                    fontFamily: MONO,
-                    color: WARN,
-                    cursor: "pointer",
-                    boxShadow: `0 0 15px rgba(255,175,56,0.3), inset 0 0 10px rgba(255,175,56,0.2)`,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    pointerEvents: "auto",
-                  }}
-                  whileHover={{ backgroundColor: "rgba(255,175,56,0.25)", scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <span style={{ fontSize: 16 }}>⚠</span>
-                  <span style={{ fontSize: 10, letterSpacing: "0.1em" }}>INCOMING DATA</span>
-                </motion.button>
-              )}
+            {/* ─── Bottom Center: DATA_LINK upload bar ─────────────────────── */}
+            <div style={{
+              position: "absolute", bottom: "5vh", left: "50%", transform: "translateX(-50%)",
+              background: PANEL_BG, border: `1px solid ${isDanger ? "rgba(239,68,68,0.3)" : BORDER}`,
+              borderRadius: 6, padding: "10px 20px", fontFamily: MONO, minWidth: 320,
+              boxShadow: isDanger ? "0 0 30px rgba(239,68,68,0.1), inset 0 0 20px rgba(0,0,0,0.4)" : "0 0 30px rgba(0,0,0,0.5), inset 0 0 20px rgba(0,0,0,0.3)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: dataColor, animation: dataPct >= 100 ? "dangerPulseFast 0.8s infinite" : "glow 2s ease-in-out infinite" }} />
+                  <span style={{ fontSize: 11, color: dataColor, letterSpacing: "0.2em", textShadow: `0 0 8px ${dataColor}55` }}>
+                    DATA_LINK
+                  </span>
+                </div>
+                <span style={{ fontSize: 12, fontWeight: "bold", color: dataColor, letterSpacing: "0.1em", textShadow: `0 0 6px ${dataColor}55` }}>
+                  {dataPct >= 100 ? "TRANSFER COMPLETE" : `${dataPct}%`}
+                </span>
+              </div>
+              <div style={{ height: 4, borderRadius: 2, width: "100%", background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${dataPct}%`, background: `linear-gradient(90deg, ${OK}, ${dataColor})`, transition: "width 0.2s ease-out", boxShadow: `0 0 8px ${dataColor}88` }} />
+              </div>
+            </div>
 
-              {showApproachWarning && (
+            {/* ─── Phase Briefing modal (opening locks the scroll) ─────────── */}
+            <AnimatePresence>
+              {briefing && briefingOpen && (
                 <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none", zIndex: 100 }}>
                   <motion.div
                     drag
                     dragMomentum={false}
-                    initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                    dragElastic={0.06}
+                    initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
                     style={{
-                      width: 400,
-                      background: "rgba(15, 23, 42, 0.85)",
-                      border: `1px solid ${C_DIM}`,
-                      borderRadius: 8,
-                      padding: "24px",
+                      width: 440, maxWidth: "86vw",
+                      background: "rgba(8, 14, 26, 0.94)",
+                      border: `1.5px solid ${briefing.accent}aa`,
+                      borderRadius: 8, padding: "22px 24px",
                       fontFamily: "system-ui, sans-serif",
-                      boxShadow: "0 20px 40px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.05)",
+                      boxShadow: `0 20px 50px rgba(0,0,0,0.7), 0 0 30px ${briefing.accent}3a, inset 0 0 0 1px rgba(255,255,255,0.05)`,
                       pointerEvents: "auto",
                       cursor: "grab",
                     }}
-                    whileDrag={{ cursor: "grabbing", scale: 1.02, boxShadow: "0 30px 60px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.1)" }}
+                    whileDrag={{ cursor: "grabbing", scale: 1.02, boxShadow: `0 30px 70px rgba(0,0,0,0.8), 0 0 40px ${briefing.accent}55` }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                      <div style={{ fontFamily: MONO, color: WARN, fontSize: 10, letterSpacing: "0.2em" }}>
-                        ⚠ ALERT // GRAVITATIONAL ANOMALY
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ color: `${briefing.accent}88`, fontSize: 12, letterSpacing: "0.05em" }}>⠿</span>
+                        <div style={{ fontFamily: MONO, color: briefing.accent, fontSize: 10, letterSpacing: "0.2em" }}>{briefing.tag}</div>
                       </div>
-                      <button
-                        onClick={() => setShowApproachWarning(false)}
-                        style={{
-                          background: "none", border: "none", color: C_DIM, cursor: "pointer",
-                          fontSize: 16, padding: "4px",
-                        }}
-                      >
-                        ✕
-                      </button>
+                      <button onClick={() => setBriefingOpen(false)} onPointerDownCapture={(e) => e.stopPropagation()} style={{ background: "none", border: "none", color: C_DIM, cursor: "pointer", fontSize: 16, padding: "4px", pointerEvents: "auto" }}>✕</button>
                     </div>
 
-                    <h3 style={{ color: "#e8e6e3", fontSize: 24, fontWeight: 300, letterSpacing: "0.1em", marginBottom: 12 }}>
-                      TIME IS RELATIVE
-                    </h3>
+                    <h3 style={{ color: "#e8e6e3", fontSize: 21, fontWeight: 300, letterSpacing: "0.08em", marginBottom: 14 }}>{briefing.title}</h3>
 
-                    <p style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
-                      As you approach the event horizon, time dilates. What feels like seconds here is centuries elsewhere.
-                    </p>
+                    {briefing.body && (
+                      <p style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.65, marginBottom: briefing.lines || briefing.equation ? 16 : 0 }}>{briefing.body}</p>
+                    )}
 
-                    <div style={{
-                      background: "rgba(0,0,0,0.3)", padding: "10px 12px", borderRadius: 4,
-                      fontFamily: MONO, fontSize: 10, color: "#64748b",
-                      display: "flex", flexDirection: "column", gap: 6
-                    }}>
-                      <div style={{ color: "#e8e6e3" }} >SCHWARZSCHILD RADIUS: 2GM/c²</div>
-                      <div style={{ color: WARN }}>GRAVITATIONAL REDSHIFT ACTIVE</div>
-                    </div>
+                    {briefing.lines && (
+                      <div style={{ background: "rgba(0,0,0,0.3)", padding: "12px 14px", borderRadius: 4, fontFamily: MONO, fontSize: 11, display: "flex", flexDirection: "column", gap: 8 }}>
+                        {briefing.lines.map((ln, i) => (
+                          <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                            {ln.label && <span style={{ color: "#64748b", letterSpacing: "0.1em" }}>{ln.label}</span>}
+                            <span style={{ color: briefing.accent, textAlign: "right" }}>{ln.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {briefing.equation && (
+                      <div style={{ background: "rgba(0,0,0,0.3)", padding: "16px 14px", borderRadius: 4, fontFamily: MONO, fontSize: 13, color: "#cbd5e1", textAlign: "center" }}>
+                        <div style={{ fontSize: 16, letterSpacing: "0.04em", marginBottom: 8 }}>
+                          t<sub>earth</sub> = t<sub>local</sub> / √(1 − r<sub>s</sub>/r)
+                        </div>
+                        <div style={{ fontSize: 9, color: "#64748b", letterSpacing: "0.08em", lineHeight: 1.6 }}>
+                          rs = SCHWARZSCHILD RADIUS · r = DISTANCE TO LETHE
+                        </div>
+                      </div>
+                    )}
                   </motion.div>
                 </div>
               )}

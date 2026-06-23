@@ -133,10 +133,10 @@ const fragmentShader = /* glsl */ `
  */
 function executeAtomicReset() {
   const store = useExperienceStore.getState();
-  store.setShouldResetScroll(true);  // signals useScrollPhase
-  store.setGravity(0);
-  store.setPhase('traversal');
-  store.setSingularityProgress(0);
+  // Act 6: instead of looping back to traversal, FREEZE on black and hand
+  // off to the Epilogue. The scene stays dark; the Epilogue component
+  // (driven by isEpilogue) types Earth's transmission, then offers reload.
+  store.setIsEpilogue(true);
 }
 
 function smoothstep(edge0: number, edge1: number, x: number): number {
@@ -242,6 +242,7 @@ export function SingularityPass() {
       timerRef.current = 0;
       useExperienceStore.getState().setIsSingularityActive(false);
       useExperienceStore.getState().setSingularityProgress(0);
+      useExperienceStore.getState().resetLore();
       gl.render(scene, camera);
       return;
     }
