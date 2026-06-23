@@ -46,7 +46,8 @@ Raymarching a black hole at native 1080p+ resolution is computationally impossib
 
 ### 4. Cinematic Timeline & State Management
 - Managed via `useExperienceStore` (Zustand).
-- Phases: `home` → `awakening` → `traversal` → `revelation` → `discovery` → `approach` → `event-horizon` → `singularity`.
+- **Phases**: `home` → `awakening` → `traversal` → `revelation` → `discovery` → `approach` → `event-horizon` → `singularity`.
+- **Lore Integration (Unit-7 Protocol)**: The store tracks time dilation (`localTimeSec` vs `earthYear`), `dataLink` upload progress, and an `isEpilogue` state which freezes the experience after the singularity.
 - `SceneManager.tsx` handles scroll-driven camera interpolation and orchestrates the hand-off to the orbital and singularity cinematics.
 
 ---
