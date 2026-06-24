@@ -1,0 +1,61 @@
+name: Bug Report
+description: Create a report to help us improve Event Horizon
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue! Because Event Horizon relies heavily on WebGL, please include your device and browser information.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description of the bug
+      description: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce this issue?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or Video
+      description: Drag and drop screenshots or video recordings here.
+    validations:
+      required: false
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser, OS, and GPU model if known
+      placeholder: e.g. Chrome 114, Windows 11, RTX 3070
+    validations:
+      required: true
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device type
+      options:
+        - Desktop
+        - Mobile
+        - Tablet
+    validations:
+      required: true
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Existing Issues
+      options:
+        - label: I have searched the existing issues to make sure this bug hasn't already been reported.
+          required: true

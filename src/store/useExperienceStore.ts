@@ -13,9 +13,8 @@
  *    near 2026 through the calm acts and detonates to YEAR 42,026 exactly
  *    at the horizon crossing — reliably, regardless of how long the user
  *    takes to scroll. See computeEarthYear below.
- *  - dataLink: the DATA_LINK upload bar (0→1) shown where the phase
- *    indicator used to be. Tracks journey progress; hits 1.0 at the
- *    horizon (Act 4 trigger).
+ *  - dataLink: the DATA_LINK upload bar (0→1) tracking journey progress.
+ *    Hits 1.0 at the horizon (Act 4 trigger).
  */
 
 import { create } from "zustand";
@@ -57,11 +56,11 @@ function getPhaseConfig(phase: Phase) {
  *  MONOTONIC: callers feed the FURTHEST progress reached (a high-water mark),
  *  so scrolling back never rewinds Earth's clock — elapsed time only moves
  *  forward, which is the physically correct behavior. */
-export const EARTH_START_YEAR = 2133;
-export const EARTH_YEAR_SPAN = 20000;
+const EARTH_START_YEAR = 2133;
+const EARTH_YEAR_SPAN = 20000;
 export const EARTH_END_YEAR = EARTH_START_YEAR + EARTH_YEAR_SPAN; // 22133
 const EARTH_DILATION_EXP = 5.48; // fit of the integrated Schwarzschild factor
-export function computeEarthYear(progress: number): number {
+function computeEarthYear(progress: number): number {
   const p = clamp(progress, 0, 1);
   return EARTH_START_YEAR + EARTH_YEAR_SPAN * Math.pow(p, EARTH_DILATION_EXP);
 }
@@ -70,7 +69,7 @@ export function computeEarthYear(progress: number): number {
  *  the scroll phases it's scrollProgress; the orbit pushes it from ~0.82 to
  *  ~0.97, and the singularity finishes it to 1.0 — so the clocks keep
  *  accelerating through the cinematic even though scroll is locked. */
-export function computeJourneyProgress(
+function computeJourneyProgress(
   scrollProgress: number,
   orbitProgress: number,
   isOrbitActive: boolean,

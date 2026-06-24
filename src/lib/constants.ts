@@ -49,7 +49,7 @@ export const COLORS = {
 // keyframes below are derived from DISK_OUTER so that changing the black
 // hole's size automatically repositions every phase to the correct
 // physical relationship with the disk — no manual keyframe tuning.
-export const BH_GEOMETRY = {
+const BH_GEOMETRY = {
   blackHoleZ: -20,
   schwarzschildR: 3.5,
   diskInner: 10.5,
@@ -133,45 +133,11 @@ export const CAMERA_KEYFRAMES = DISK_DISTANCE_MULTIPLIERS.map(({ scroll, mult })
 // repositions automatically. No more hand-calculated scroll values drifting
 // out of sync.
 //
-// The camera travels along +Z → −Z (from CAMERA_KEYFRAMES[0].z toward the
-// black hole). `scrollToWorldZ` / `worldZToScroll` convert between the two
-// coordinate systems by inverting the keyframe map.
 
-/** Camera world-Z at a given scroll [0..1] (piecewise-linear keyframes). */
-export function scrollToWorldZ(scroll: number): number {
-  const kf = CAMERA_KEYFRAMES;
-  if (scroll <= kf[0].scroll) return kf[0].z;
-  if (scroll >= kf[kf.length - 1].scroll) return kf[kf.length - 1].z;
-  for (let i = 0; i < kf.length - 1; i++) {
-    if (scroll >= kf[i].scroll && scroll <= kf[i + 1].scroll) {
-      const t = (scroll - kf[i].scroll) / (kf[i + 1].scroll - kf[i].scroll);
-      return kf[i].z + (kf[i + 1].z - kf[i].z) * t;
-    }
-  }
-  return kf[kf.length - 1].z;
-}
-
-/** Inverse of scrollToWorldZ: the scroll [0..1] at which the camera reaches
- *  a given world-Z. Z decreases as scroll increases, so we walk segments
- *  looking for the one that brackets the target Z. */
-export function worldZToScroll(z: number): number {
-  const kf = CAMERA_KEYFRAMES;
-  if (z >= kf[0].z) return kf[0].scroll;
-  if (z <= kf[kf.length - 1].z) return kf[kf.length - 1].scroll;
-  for (let i = 0; i < kf.length - 1; i++) {
-    const zHi = kf[i].z;
-    const zLo = kf[i + 1].z;
-    if (z <= zHi && z >= zLo) {
-      const t = (zHi - z) / (zHi - zLo);
-      return kf[i].scroll + (kf[i + 1].scroll - kf[i].scroll) * t;
-    }
-  }
-  return kf[kf.length - 1].scroll;
-}
 
 // ─── World anchors: the physical layout of the journey ──────────────────────
 // Edit THESE to reshape the experience. Everything downstream follows.
-export const WORLD_ANCHORS = {
+const WORLD_ANCHORS = {
   /** Where the camera starts (its home keyframe). */
   cameraStartZ: CAMERA_KEYFRAMES[0].z,
   /** The black hole's Z (from the geometry source of truth). */
@@ -206,29 +172,23 @@ export const NEBULA_HALF_DEPTH = Math.round(
   Math.abs(WORLD_ANCHORS.nebulaNearZ - WORLD_ANCHORS.nebulaFarZ) / 2
 );
 /** Near/far world-Z bounds of the nebula, for position-based dissolve. */
-export const NEBULA_NEAR_Z = WORLD_ANCHORS.nebulaNearZ;
-export const NEBULA_FAR_Z = WORLD_ANCHORS.nebulaFarZ;
+const NEBULA_NEAR_Z = WORLD_ANCHORS.nebulaNearZ;
+const NEBULA_FAR_Z = WORLD_ANCHORS.nebulaFarZ;
 
-// ─── Derived art cues (scroll values computed from world anchors) ───────────
-// These REPLACE the hand-tuned scroll thresholds that used to live in the
-// shader (black-hole reveal) and the nebula component (dissolve). They are
-// computed from the nebula's physical position, so moving the nebula moves
-// the cues with it.
-// ─── Timeline cues (HARD-CODED scroll values) ──────────────────────────────
-// After repeated desync with derived/position-based timing, these are pinned
-// to explicit scroll points. They MUST match the nebula dissolve in
-// Nebula.tsx (DISSOLVE_START 0.05 → DISSOLVE_END 0.20). The nebula clears at
-// 0.20; the traversal phase ends there; the black hole finishes revealing
-// there. All three fire together because they share the same numbers.
+// ─── Timeline cues (explicit scroll values) ────────────────────────────────
+// These are pinned to explicit scroll points. They MUST match the nebula
+// dissolve in Nebula.tsx (DISSOLVE_START 0.05 → DISSOLVE_END 0.20). The
+// nebula clears at 0.20; the traversal phase ends there; the black hole
+// finishes revealing there. All three fire together because they share
+// the same numbers.
 export const TIMELINE_CUES = {
   /** Traversal begins just before the nebula (a touch after home settles). */
   traversalStart: 0.05,
   /** Camera is in the dense gas. */
   nebulaEnter: 0.12,
   /**
-   * Nebula reads as GONE here (0.220) — tuned by reading the live scroll
-   * value off the debug HUD as the gas cleared on screen. Traversal ends
-   * and the black hole finishes revealing at this same point.
+   * Nebula reads as GONE here (0.220). Traversal ends and the black hole
+   * finishes revealing at this same point.
    */
   nebulaExit: 0.210,
   /** Black hole starts emerging from the gas. */
@@ -375,10 +335,9 @@ export const ORBIT = {
   /** Progress fraction where the height starts settling to finalHeight */
   settleStart: 0.85,
   /**
-   * Progress fraction used to blend BOTH position and orientation in
-   * from the scroll camera's final state. Widened from 0.08 to 0.15
-   * (≈1.8s) so the hand-off reads as a smooth acceleration into orbit
-   * rather than an abrupt cutscene cut.
+   * Progress fraction blending BOTH position and orientation in
+   * from the scroll camera's final state. A value of 0.15 (≈1.8s) ensures
+   * the hand-off reads as a smooth acceleration into orbit.
    */
   blendInWindow: 0.15,
 } as const;

@@ -16,7 +16,7 @@ export function clamp(value: number, min: number, max: number): number {
 }
 
 /** Remap value from one range to another */
-export function remap(
+function remap(
   value: number,
   inMin: number,
   inMax: number,
@@ -33,21 +33,7 @@ export function smoothstep(edge0: number, edge1: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
-/** Smoother step (Ken Perlin's improved version) */
-export function smootherstep(edge0: number, edge1: number, x: number): number {
-  const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
-  return t * t * t * (t * (t * 6 - 15) + 10);
-}
 
-/** Exponential ease-in */
-export function easeInExpo(t: number): number {
-  return t === 0 ? 0 : Math.pow(2, 10 * t - 10);
-}
-
-/** Exponential ease-out */
-export function easeOutExpo(t: number): number {
-  return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
-}
 
 /** Sine ease-in-out */
 export function easeInOutSine(t: number): number {

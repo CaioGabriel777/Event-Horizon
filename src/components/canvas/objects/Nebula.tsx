@@ -38,7 +38,7 @@ const CLOUD_CENTER_Z = NEBULA_CENTER_Z;
 // The core sits in the dense middle; the halo extends toward the full depth
 // but is kept WITHIN the anchored extent (factor ≤ 1.0 each side) so the
 // gas never spills past nebulaFarZ into the zone where the black hole must
-// be visible. (Previously hardcoded ±15 / ±30, which overshot.)
+// be visible.
 const CORE_Z_SPREAD = NEBULA_HALF_DEPTH * 1.0;
 const HALO_Z_SPREAD = NEBULA_HALF_DEPTH * 1.2;
 

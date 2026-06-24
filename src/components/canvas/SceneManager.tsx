@@ -134,9 +134,8 @@ export function SceneManager() {
         CAMERA.baseHeight,
         CAMERA_KEYFRAMES[0].z
       );
-      // Look level (at the camera's own height), not at (0,0,0), to stay
-      // consistent with the Bug A fix below — otherwise the very first
-      // post-reset frame would briefly pitch down.
+      // Look level (at the camera's own height) to ensure the very first
+      // post-reset frame remains completely horizontal.
       lookTarget.current.set(0, CAMERA.baseHeight, 0);
       camera.lookAt(lookTarget.current);
       console.log("[SceneManager] Camera snapped home during blackout");
@@ -172,12 +171,9 @@ export function SceneManager() {
     // got close; matching the look Y to the camera Y keeps the gaze
     // level at any distance.
     //
-    // The look Z is ALWAYS the black hole (BH_Z). It used to ease from
-    // "ahead" (0) to the black hole only in the entering phases — but
-    // with the closer scale-journey keyframes the camera now travels
-    // through and past z=0, so looking at 0 made the camera flip to face
-    // backward mid-discovery once it crossed the target point. The black
-    // hole is the focus of every phase, so we lock the look Z to it.
+    // The look Z is securely locked to the black hole (BH_Z). The black
+    // hole is the focus of every phase, and locking it prevents any gaze
+    // flipping when the camera travels past intermediate points.
     const lookDamp = isSingularity ? 8 : 1.5;
     lookTarget.current.z = damp(lookTarget.current.z, BH_Z, lookDamp, delta);
     // Track the camera height every frame — eliminates the pitch-down.

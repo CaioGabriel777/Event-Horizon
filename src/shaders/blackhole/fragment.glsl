@@ -2,36 +2,20 @@
  * Black Hole — Fragment Shader (Volumetric Gargantua)
  * ====================================================================
  * Renders a physically-based Schwarzschild black hole with a volumetric
- * accretion disk, using a precomputed Geodesic LUT from Rust/WASM.
+ * accretion disk using a pure RK4 geodesic ray integrator.
  *
- * LUT Channel Layout (from lib.rs):
- *   R = cos(disk_angle)   — seam-free angular encoding
- *   G = sin(disk_angle)   — seam-free angular encoding
- *   B = disk_r             — equatorial plane crossing radius
- *   A = disk_sdf           — signed distance to disk annulus boundary
- *
- * Hybrid Rendering Architecture:
- *   The LUT's bilinear interpolation is fundamentally corrupted at the
- *   event horizon boundary (b ≈ B_CRITICAL), where captured-ray texels
- *   (all zeros) blend with escaped-ray texels (valid disk data).
- *   To fix this, main() routes pixels near the horizon (b < 3.2) to
- *   the mathematically flawless RK4 integrator, and uses the fast LUT
- *   for the vast background disk (b >= 3.2). A smooth blend zone
- *   (b ∈ [2.8, 3.2]) prevents visible seams between the two engines.
+ * Architecture:
+ *   Every pixel fires a ray through curved spacetime using a 4th-order
+ *   Runge-Kutta integrator. A vacuum-skip optimization analytically
+ *   jumps each ray past empty flat space directly to the gravity zone,
+ *   spending all integration steps where curvature matters. This makes
+ *   full-screen RK4 affordable even on integrated GPUs.
  *
  * ORBITAL CAMERA SUPPORT:
  *   The camera basis arrives via uniforms from the real Three.js camera
  *   (world space). The impact parameter `b` is computed via TRUE 3D
  *   closest-approach geometry — valid for any camera orientation,
- *   including the cinematic orbit. The host component force-disables
- *   the LUT (uUseLUT = 0) while the orbital/singularity sequences run,
- *   because the 2D LUT was "photographed" from the fixed frontal camera
- *   and is geometrically invalid from any other angle.
- *
- * Compositing (LUT path only):
- *   The disk is split into FRONT (diskSin > 0, camera-side) and BACK
- *   (diskSin < 0, far-side) layers. The event horizon shadow occludes
- *   ONLY the back layer. The front layer composites ON TOP via alpha-over.
+ *   including the cinematic orbit.
  *
  * COMPLETENESS FIX (this revision):
  *   The only change vs. the previous running version is the RK4 escape
@@ -51,9 +35,6 @@ uniform float uFov;
 uniform float uScrollProgress;
 uniform float uRevealStart; // black-hole reveal fade-in start (world-anchored)
 uniform float uRevealEnd;   // black-hole reveal fade-in end (world-anchored)
-
-uniform sampler2D uGeodesicLUT;
-uniform float uUseLUT;
 
 uniform vec3  uCameraPos;
 uniform vec3  uCameraRight;
@@ -80,11 +61,6 @@ const float DISK_INNER = 10.5;  // ~1.15× shadow — disk hugs the photon ring
 const float DISK_OUTER = 36.0;  // ~4.0× shadow — slightly wider for better proportion
 const float PI = 3.14159265359;
 const float TAU = 6.28318530718;
-
-// Impact parameter range — must match Rust lib.rs exactly.
-const float LUT_B_MIN = 0.0;
-const float LUT_B_MAX = 18.0;
-const float LUT_B_RANGE = 18.0;
 
 // Analytic critical impact parameter for a Schwarzschild black hole.
 const float B_CRITICAL = 2.598076; // 3√3 / 2 (dimensionless, × R for world units)
@@ -341,70 +317,6 @@ float closestApproach(vec3 rayOrigin, vec3 rayDir, out vec3 perpOut) {
     return (tC > 0.0) ? length(perpOut) : length(oc);
 }
 
-// ─── LUT Path ──────────────────────────────────────────────────────────────
-// Clean front/back compositing. No ghost suppression masks — the hybrid
-// routing in main() ensures this function is never called near B_CRITICAL.
-//
-// NOTE: This path intentionally keeps the PLANAR (focal-plane) b/theta
-// computation below — the Rust LUT was baked against exactly this
-// screen-polar parameterization for the frontal scroll camera. The host
-// component guarantees this path never runs with an orbital camera
-// (uUseLUT is forced to 0 during cinematic sequences).
-
-vec4 renderWithLUT(vec2 uv) {
-    CameraRay cam = setupCamera(uv);
-
-    // Theta: Screen-Polar Angle (LUT-specific parameterization)
-    float tZ = -(cam.pos.z - uBlackHolePos.z) / cam.dir.z;
-    vec3 target = cam.pos + cam.dir * tZ;
-    vec3 relTarget = target - uBlackHolePos;
-    float b = length(relTarget.xy);
-    float theta = atan(relTarget.y, relTarget.x);
-    if (theta < 0.0) theta += TAU;
-
-    float lutU = clamp((b - LUT_B_MIN) / LUT_B_RANGE, 0.0, 1.0);
-    float lutV = theta / TAU;
-
-    vec4 g = texture2D(uGeodesicLUT, vec2(lutU, lutV));
-
-    float diskCos = g.r;
-    float diskSin = g.g;
-    float diskAngle = atan(diskSin, diskCos);
-    float diskR   = g.b;
-    float diskSDF = g.a;
-
-    // ─── DISK SAMPLING & LAYER SPLIT ────────────────────────────────
-    vec4 diskSample = vec4(0.0);
-    if (diskR > 0.0) {
-        diskSample = sampleDiskAtAngle(diskR, diskAngle, diskSDF);
-    }
-
-    // Front/Back depth decomposition based on diskSin (from LUT).
-    // diskSin > 0 → ray crossed on the camera side (FRONT of BH)
-    // diskSin < 0 → ray crossed on the far side (BACK of BH)
-    float frontWeight = smoothstep(-0.15, 0.15, diskSin);
-
-    vec3 frontColor = diskSample.rgb * frontWeight;
-    float frontAlpha = diskSample.a * frontWeight;
-
-    vec3 backColor = diskSample.rgb * (1.0 - frontWeight);
-    float backAlpha = diskSample.a * (1.0 - frontWeight);
-
-    // ─── EVENT HORIZON (analytic silhouette) ────────────────────────
-    // captureMask occludes ONLY the back layer.
-    // Front disk composites ON TOP via alpha-over.
-    float captureMask = 1.0 - aaStep(B_CAPTURE, b);
-
-    vec3 bgColor = backColor * (1.0 - captureMask);
-    float bgAlpha = captureMask + backAlpha * (1.0 - captureMask);
-
-    // Alpha-over composite: front disk ON TOP of (shadow + back disk)
-    vec3 accColor = frontColor + bgColor * (1.0 - frontAlpha);
-    float accAlpha = frontAlpha + bgAlpha * (1.0 - frontAlpha);
-
-    return vec4(accColor, accAlpha);
-}
-
 // ─── Lensed Starfield (procedural, direction-sampled) ───────────────────────
 // The background stars are a particle system (THREE.Points) that the
 // raymarcher cannot sample. To render gravitational lensing of the sky —
@@ -491,15 +403,11 @@ vec4 renderWithRK4(vec2 uv) {
 
   float camDist = length(cam.pos - uBlackHolePos);
 
-  // ─── VACUUM SKIP (THE COMPLETENESS FIX) ───────────────────────────
+  // ─── VACUUM SKIP OPTIMIZATION ─────────────────────────────────────────────
   // Far from the black hole, spacetime is effectively flat: light
-  // travels in a straight line and there is nothing to integrate. The
-  // debug pass proved the failure mode — at 46–70 units away, the ray
-  // burned its entire ~120-step budget crossing the empty void and ran
-  // out before reaching the curved region, so the shadow sphere and the
-  // front disk arc never formed. The hole only looked complete once the
-  // camera got close enough (revelation, ~29u) for the budget to reach
-  // the center — the false impression that completeness depended on phase.
+  // travels in a straight line and there is nothing to integrate.
+  // To avoid burning the step budget crossing empty void before reaching
+  // the curved region, we analytically skip flat space.
   //
   // The fix costs ZERO extra steps: analytically jump the ray straight
   // to the edge of the gravity zone (a sphere of radius GRAVITY_ZONE
@@ -598,15 +506,10 @@ vec4 renderWithRK4(vec2 uv) {
   return vec4(accColor, accAlpha);
 }
 
-// ─── Main ───────────────────────────────────────────────────────────────────
-// Hybrid routing: RK4 for the core, LUT for the background disk.
-// Smooth blend zone (b ∈ [2.8, 3.2]) prevents visible seams.
-//
-// Routing and corona geometry use the TRUE 3D closest-approach impact
-// parameter — orientation-independent, so the orbital camera renders
-// correct lensing from every angle. With the frontal scroll camera the
-// 3D and planar computations are numerically equivalent (zero visual
-// regression on the existing phases).
+// ─── Main ───────────────────────────────────────────────────────────────────────
+// Pure RK4 rendering. The corona overlay uses the TRUE 3D closest-approach
+// impact parameter — orientation-independent, so the orbital camera renders
+// correct lensing from every angle.
 
 void main() {
     CameraRay cam = setupCamera(vUv);
@@ -620,29 +523,7 @@ void main() {
     float b = closestApproach(cam.pos, cam.dir, perp);
     float theta = atan(perp.y, perp.x);
 
-    vec4 result;
-
-    if (uUseLUT > 0.5) {
-        // Route the near-horizon core to RK4 and the background disk to
-        // the LUT. The blend band sits just OUTSIDE the world-space
-        // photon-capture radius (B_CAPTURE), scaling with the black hole
-        // size — a fixed 2.8/3.2 band would land deep inside the shadow
-        // now that the horizon is at b ≈ 6.5.
-        float blendLo = B_CAPTURE + 0.2;
-        float blendHi = B_CAPTURE + 0.6;
-        float rk4Weight = 1.0 - smoothstep(blendLo, blendHi, b);
-
-        if (rk4Weight > 0.99) {
-            result = renderWithRK4(vUv);
-        } else if (rk4Weight < 0.01) {
-            result = renderWithLUT(vUv);
-        } else {
-            // Blend zone: both engines run, mix prevents visible seam
-            result = mix(renderWithLUT(vUv), renderWithRK4(vUv), rk4Weight);
-        }
-    } else {
-        result = renderWithRK4(vUv);
-    }
+    vec4 result = renderWithRK4(vUv);
 
     vec3 accColor = result.rgb;
     float accAlpha = result.a;

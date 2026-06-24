@@ -207,7 +207,7 @@ export function SingularityPass() {
       // Defensive orientation lock: regardless of how the orbit hand-off
       // resolved (frame races, large deltas), the collapse sequence and
       // its dolly-zoom assume the camera is centered on the black hole.
-      // Lock it here, once, on the engagement frame (Bug 2).
+      // Lock it here, once, on the engagement frame.
       camera.lookAt(BLACK_HOLE_POSITION);
       useExperienceStore.getState().setIsSingularityActive(true);
       console.log("[Singularity] Sequence engaged — 4-act collapse timeline started");

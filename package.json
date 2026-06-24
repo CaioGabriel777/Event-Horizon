@@ -4,8 +4,6 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build:wasm": "cd rust/geodesic-lut && wasm-pack build --target web --release --out-dir ../../public/wasm",
-    "prebuild": "npm run build:wasm",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

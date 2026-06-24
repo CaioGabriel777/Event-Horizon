@@ -108,11 +108,3 @@ export interface PerformanceMetrics {
   updateMetrics: (metrics: Partial<PerformanceMetrics>) => void;
 }
 
-/** Gravity text shader uniforms */
-export interface GravityTextUniforms {
-  uGravity: number;
-  uTime: number;
-  uBlackHolePos: [number, number, number];
-  uNoiseScale: number;
-  uStretchFactor: number;
-}

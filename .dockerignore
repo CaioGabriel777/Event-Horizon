@@ -8,9 +8,6 @@ build
 Dockerfile
 docker-compose.yml
 README.md
-rust/**/target
-rust/**/pkg
-public/wasm
 .DS_Store
 *.pem
 *.md

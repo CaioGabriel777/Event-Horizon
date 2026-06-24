@@ -4,10 +4,6 @@
  * Phase 2: Minimal scene that hints at the gravitational presence.
  * The main text content is handled by the SceneOverlay (DOM layer).
  * This scene only adds subtle ambient lighting.
- *
- * NOTE: The 3D text "Something pulls..." was removed because it
- * overlapped with ApproachScene's "TIME IS RELATIVE" text when
- * both scenes are active simultaneously.
  */
 
 "use client";
