@@ -139,9 +139,9 @@ export function StarStreaks() {
   return (
     <points ref={pointsRef} visible={false}>
       <bufferGeometry>
-        <bufferAttribute attach="attributes-position" count={2000} array={positions} itemSize={3} />
-        <bufferAttribute attach="attributes-aSize" count={2000} array={sizes} itemSize={1} />
-        <bufferAttribute attach="attributes-aSpeed" count={2000} array={speeds} itemSize={1} />
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+        <bufferAttribute attach="attributes-aSize" args={[sizes, 1]} />
+        <bufferAttribute attach="attributes-aSpeed" args={[speeds, 1]} />
       </bufferGeometry>
       <shaderMaterial
         ref={materialRef}

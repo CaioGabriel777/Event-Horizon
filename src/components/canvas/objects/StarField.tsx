@@ -149,17 +149,14 @@ export function StarField({ radius = 300 }: StarFieldProps) {
         <bufferAttribute
           attach="attributes-position"
           args={[positions, 3]}
-          count={positions.length / 3}
         />
         <bufferAttribute
           attach="attributes-color"
           args={[colors, 3]}
-          count={colors.length / 3}
         />
         <bufferAttribute
           attach="attributes-size"
           args={[sizes, 1]}
-          count={sizes.length}
         />
       </bufferGeometry>
       <shaderMaterial
