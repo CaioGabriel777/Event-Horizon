@@ -134,8 +134,7 @@ export function useOrbitCamera() {
       orbitTime.current = 0;
       entryPos.current.copy(camera.position);
       // Capture the point the scroll camera was looking at, so the orbit
-      // eases orientation from here toward the black hole instead of
-      // snapping (Bug 3, sub-problem B). A point 10 units ahead of the
+      // eases orientation from the scroll vector toward the black hole instead of snapping. A point 10 units ahead of the
       // current forward vector reconstructs the entry gaze target.
       camera.getWorldDirection(lookDir.current);
       entryLookAt.current
@@ -202,7 +201,7 @@ export function useOrbitCamera() {
 
     // Blend the look-at target the same way: from the entry gaze point
     // toward the black hole. This eases the camera rotation in instead
-    // of snapping it on the first orbit frame (Bug 3). Once blendIn
+    // of snapping it on the first orbit frame. Once blendIn
     // reaches 1.0 the camera locks onto the black hole for the rest of
     // the orbit, so the world-space raymarcher gets true lensing from
     // every angle.
@@ -219,7 +218,7 @@ export function useOrbitCamera() {
       // Lock the camera dead-on the black hole on the final frame. The
       // singularity collapse (and its dolly-zoom) assumes a centered
       // gaze; without this explicit lock a large-delta final frame could
-      // leave the camera slightly off-axis (Bug 2).
+      // leave the camera slightly off-axis.
       camera.position.copy(orbitPos.current);
       camera.lookAt(BLACK_HOLE_POSITION);
       state.setIsOrbitActive(false);

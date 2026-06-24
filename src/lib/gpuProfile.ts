@@ -2,7 +2,7 @@
  * GPU Profile Detector
  * ====================
  * Detects GPU capability tier from the WebGL renderer string.
- * Used to configure resolution scale, step count, and FBM octaves
+ * Configures resolution scale, step count, and FBM octaves
  * for the black hole raymarcher.
  */
 

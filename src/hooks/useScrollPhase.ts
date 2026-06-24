@@ -58,9 +58,8 @@ export function useScrollPhase() {
 
     // Restore standard overflow and update scroll progress from the RAW
     // scroll offset. The timeline cues (phase boundaries, nebula dissolve,
-    // black-hole reveal) are now pinned to explicit scroll values, so the
-    // store must carry the same raw scroll the nebula and shader read —
-    // no camera-position derivation, which previously drifted out of sync.
+    // black-hole reveal) are pinned to explicit scroll values, so the
+    // store carries the exact raw scroll the nebula and shader read.
     if (scroll.el.style.overflow !== "auto") {
       scroll.el.style.overflow = "auto";
     }

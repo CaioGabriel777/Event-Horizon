@@ -13,16 +13,12 @@
  * This decouples raymarch cost from display resolution — the single biggest
  * performance lever for integrated GPUs and mobile devices.
  *
- * CINEMATIC LUT BYPASS (orbital camera support):
- *   The Geodesic LUT was "photographed" from a fixed frontal camera. It is
- *   only valid while the scroll camera travels its straight-line approach.
- *   During the orbital approach and the singularity sequence the camera
- *   moves to arbitrary angles — and even at close range, peripheral screen
- *   rays still carry impact parameters above the hybrid threshold (b > 3.2),
- *   so the LUT would NOT shut off "organically". We therefore force
- *   uUseLUT = 0 whenever `isOrbitActive || isSingularityActive`, letting the
- *   world-space RK4 integrator own the full frame. The reduced-resolution
- *   FBO keeps this affordable even on integrated GPUs.
+ * PURE RK4 ENGINE:
+ *   All light-ray integration is handled by the world-space RK4 integrator
+ *   in the GLSL shader. A vacuum-skip optimization makes full-screen RK4
+ *   affordable even on integrated GPUs by analytically jumping rays past
+ *   empty space into the gravity zone, spending all integration steps where
+ *   curvature actually matters.
  *
  * Shader Quality Uniforms:
  *  - uMaxSteps:   RK4 integration cap (from GPU profile)
@@ -33,8 +29,6 @@ import { useRef, useMemo, useEffect } from "react";
 import { useFrame, useThree, createPortal } from "@react-three/fiber";
 import {
   ShaderMaterial,
-  DataTexture,
-  FloatType,
   RGBAFormat,
   Scene,
   OrthographicCamera,
@@ -45,7 +39,6 @@ import {
 import * as THREE from "three";
 import { SHADER, BLACK_HOLE_POSITION, TIMELINE_CUES } from "@/lib/constants";
 import { useExperienceStore } from "@/store/useExperienceStore";
-import { useGeodesicLUT } from "@/hooks/useGeodesicLUT";
 import { GPU_PROFILES } from "@/lib/gpuProfile";
 
 import vertexShader from "@/shaders/blackhole/vertex.glsl";
@@ -57,18 +50,7 @@ interface BlackHoleProps {
   visible?: boolean;
 }
 
-// Creates an empty 1x1 fallback texture to satisfy the WebGL program
-// before the actual Rust LUT is computed and loaded.
-function createDummyTexture(): DataTexture {
-  const tex = new DataTexture(
-    new Float32Array([0, 0, 0, 0]),
-    1, 1,
-    RGBAFormat,
-    FloatType
-  );
-  tex.needsUpdate = true;
-  return tex;
-}
+
 
 export function BlackHole({
   position = [...BLACK_HOLE_POSITION],
@@ -82,17 +64,7 @@ export function BlackHole({
   const scrollProgress = useExperienceStore((s: any) => s.scrollProgress);
   const gpuProfile = useExperienceStore((s) => s.gpuProfile);
 
-  const { texture: lutTexture } = useGeodesicLUT();
   const { size, gl } = useThree();
-
-  const dummyTex = useMemo(() => createDummyTexture(), []);
-
-  // True once the Rust LUT texture has been computed and bound.
-  // The actual per-frame uUseLUT decision also factors in the
-  // cinematic state (see frame loop below).
-  const lutReadyRef = useRef(false);
-  // Tracks the last applied LUT switch so the transition is logged once.
-  const lastLutStateRef = useRef(false);
 
   // ─── FBO for reduced-resolution raymarch ─────────────────────────────
   const fboRef = useRef<WebGLRenderTarget | null>(null);
@@ -139,8 +111,6 @@ export function BlackHole({
       // final third of the nebula instead of a hand-tuned scroll value.
       uRevealStart: { value: TIMELINE_CUES.blackHoleRevealStart },
       uRevealEnd: { value: TIMELINE_CUES.blackHoleRevealEnd },
-      uGeodesicLUT: { value: dummyTex },
-      uUseLUT: { value: 0.0 },
       uCameraPos: { value: new THREE.Vector3() },
       uCameraRight: { value: new THREE.Vector3() },
       uCameraUp: { value: new THREE.Vector3() },
@@ -150,7 +120,7 @@ export function BlackHole({
       uMaxSteps: { value: 80 },
       uFbmOctaves: { value: 3 },
     }),
-    [dummyTex]
+    []
   );
 
   // Composite pass shader — simple fullscreen texture blit
@@ -165,14 +135,7 @@ export function BlackHole({
   const _up = useMemo(() => new THREE.Vector3(), []);
   const _forward = useMemo(() => new THREE.Vector3(), []);
 
-  // ─── ATOMIC LUT ACTIVATION ───────────────────────────────────────────
-  // Binds the texture and flags readiness. The per-frame loop decides
-  // whether the LUT is actually USED, based on the cinematic state.
-  useEffect(() => {
-    if (!lutTexture || !materialRef.current) return;
-    materialRef.current.uniforms.uGeodesicLUT.value = lutTexture;
-    lutReadyRef.current = true;
-  }, [lutTexture]);
+
 
   // ─── FRAME LOOP ──────────────────────────────────────────────────────
   useFrame((state) => {
@@ -191,33 +154,7 @@ export function BlackHole({
     materialRef.current.uniforms.uAspect.value = state.size.width / state.size.height;
     materialRef.current.uniforms.uFov.value = THREE.MathUtils.degToRad(cam.fov);
 
-    // ─── PURE RK4 MODE (LUT disabled) ─────────────────────────────────
-    // The vacuum-skip optimization made full-screen RK4 affordable even on
-    // integrated GPUs, so the hybrid LUT is no longer needed. Disabling it
-    // also removes a whole class of bugs: the LUT was baked in Rust against
-    // a FIXED frontal camera AND a fixed disk geometry (R=1, disk 3..12),
-    // so it broke under the orbital camera and again when the black hole
-    // was scaled up (R=2.5, disk 7..20). Pure RK4 renders correct geometry
-    // at any size, distance, and angle.
-    //
-    // To RE-ENABLE the LUT later (Caminho 1): regenerate lib.rs with the
-    // current SCHWARZSCHILD_R / DISK_INNER / DISK_OUTER / LUT_B_MAX, then
-    // flip USE_LUT back to true here.
-    const USE_LUT = false;
-    const expState = useExperienceStore.getState();
-    const cinematicActive =
-      expState.isOrbitActive || expState.isSingularityActive;
-    const lutEnabled = USE_LUT && lutReadyRef.current && !cinematicActive;
-    materialRef.current.uniforms.uUseLUT.value = lutEnabled ? 1.0 : 0.0;
 
-    if (lutEnabled !== lastLutStateRef.current) {
-      lastLutStateRef.current = lutEnabled;
-      console.log(
-        lutEnabled
-          ? "[BlackHole] LUT engaged — hybrid LUT+RK4 mode (frontal camera)"
-          : "[BlackHole] Pure RK4 mode (LUT disabled)"
-      );
-    }
 
     // Set quality params from GPU profile
     const profile = GPU_PROFILES[gpuProfile];
@@ -265,10 +202,7 @@ export function BlackHole({
     console.log("[BlackHole] initial scale:", scale);
   }, []);
 
-  useEffect(() => {
-    if (!lutTexture) return;
-    console.log("[BlackHole] LUT computed — available for frontal phases");
-  }, [lutTexture]);
+
 
   return (
     <>

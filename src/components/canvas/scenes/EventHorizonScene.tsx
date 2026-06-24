@@ -10,7 +10,6 @@
 
 import { useRef } from "react";
 import { Group } from "three";
-import { Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 
 interface EventHorizonSceneProps {

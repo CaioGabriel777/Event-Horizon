@@ -12,22 +12,13 @@ Welcome, AI Agent! This document outlines the project architecture, directory st
 
 ## 🏗️ Technical Architecture & Hybrid Engine
 
-Event Horizon is an immersive, physically-based WebGL ray-marching simulation of a Schwarzschild black hole. To achieve a locked 60 FPS in the browser with maximum physical fidelity across heterogeneous devices (from dedicated GPUs to integrated graphics), it uses a **Layered Hybrid Spatial Engine (FBO + WASM + WebGL)**:
+Event Horizon is an immersive, physically-based WebGL ray-marching simulation of a Schwarzschild black hole. To achieve a locked 60 FPS in the browser with maximum physical fidelity across heterogeneous devices (from dedicated GPUs to integrated graphics), it uses a **Layered Spatial Engine (FBO + WebGL)**:
 
 ```mermaid
 graph TD
-    A[Rust Geodesic Solver] -- wasm-pack --> B[WASM Module]
-    B --> C[Web Worker]
-    C -- Background Thread --> D[Precomputed Geodesic LUT Texture]
-    D --> E[GLSL Fragment Shader (Offscreen Pass)]
-    F[Dynamic Resolution Scaler] --> E
-    E --> H{Runtime Spatial Router}
-    H -- Cinematic Orbit / b < 2.8 --> I[High-Precision Real-Time RK4]
-    H -- Frontal Camera & b > 3.2 --> J[Ultra-Fast Bilinear LUT Lookup]
-    H -- 2.8 <= b <= 3.2 --> K[Smooth Linear Blend Zone]
+    F[Dynamic Resolution Scaler] --> E[GLSL Fragment Shader - Offscreen Pass]
+    E --> I[Pure RK4 Geodesic Integrator]
     I --> G[FBO: Render Target]
-    J --> G
-    K --> G
     G -- Bilinear Upscale --> L[Screen Composite Quad]
 ```
 
@@ -36,15 +27,12 @@ Raymarching a black hole at native 1080p+ resolution is computationally impossib
 - The Black Hole is raymarched into an **off-screen WebGLRenderTarget (FBO)** at a fractional resolution (e.g., `0.35x` for low-end GPUs).
 - A secondary full-screen quad samples this FBO using `premultipliedAlpha: true` and bilinear filtering. Because the accretion disk is gaseous, the upscale is visually imperceptible, but the performance gain is exponential (locked 60 FPS on Intel UHD 630).
 
-### 2. Rust / WASM (Offline / Initialization)
-- Calculates geodesic paths of photons under General Relativity using high-precision **Runge-Kutta 4th Order (RK4)** integration.
-- Generates a **256x256 RGBA Float32Array Lookup Table (LUT)** containing seam-free trigonometric crossing parameters `(cos(angle), sin(angle), radius, sdf)`. Runs in a Web Worker to prevent UI thread blocking.
+### 2. GLSL Fragment Shader (Pure RK4 Engine)
+- Every pixel fires a ray through curved spacetime using a **Runge-Kutta 4th Order (RK4)** integrator.
+- A **vacuum-skip optimization** analytically jumps each ray past empty flat space directly to the gravity zone, spending all integration steps where curvature matters. This makes full-screen RK4 affordable even on integrated GPUs.
+- The camera basis arrives via uniforms from the real Three.js camera (world space), enabling correct gravitational lensing from any angle — including the cinematic orbital approach.
 
-### 3. GLSL Fragment Shader (Spatial Routing & Orbit)
-- **Frontal Approach**: When the camera moves linearly on the Z-axis, the shader uses a spatial hybrid model. The core (`b < 2.8`) runs a hardware-optimized RK4 integrator loop. The outer regions (`b > 3.2`) sample the ultra-fast LUT using focal-plane coordinates (`length(relTarget.xy)`).
-- **Cinematic Orbit Bypass**: The 2D LUT is only valid from a frontal perspective. When the user reaches the Event Horizon, the `useOrbitCamera` hook takes control, spiraling the camera around the black hole. During this phase, the shader forces `uUseLUT = 0.0`, falling back exclusively to the RK4 engine. Because the camera is close (all rays have `b < 3.2`), the performance cost remains identical, but allows for 360-degree physically accurate gravitational lensing.
-
-### 4. Cinematic Timeline & State Management
+### 3. Cinematic Timeline & State Management
 - Managed via `useExperienceStore` (Zustand).
 - **Phases**: `home` → `awakening` → `traversal` → `revelation` → `discovery` → `approach` → `event-horizon` → `singularity`.
 - **Lore Integration (Unit-7 Protocol)**: The store tracks time dilation (`localTimeSec` vs `earthYear`), `dataLink` upload progress, and an `isEpilogue` state which freezes the experience after the singularity.
@@ -54,9 +42,6 @@ Raymarching a black hole at native 1080p+ resolution is computationally impossib
 
 ## 📂 Repository Structure & Key Directories
 
-- `rust/geodesic-lut/`: The Rust crate containing the geodesic equations and RK4 solvers.
-  - `src/lib.rs`: Entry point containing the WASM bindings (`wasm-bindgen`).
-- `public/wasm/`: The compiled WASM module output. Do not edit files here directly.
 - `src/app/`: Next.js (App Router) pages, layouts, and global styles.
 - `src/components/`: React Three Fiber and UI components.
   - `canvas/objects/BlackHole.tsx`: The core FBO dual-pass setup.
@@ -72,11 +57,10 @@ Raymarching a black hole at native 1080p+ resolution is computationally impossib
 We use **Docker & Docker Compose** for streamlined, multi-stage development and production environments.
 
 ### 🐳 Docker Configuration (Multi-Stage)
-1. `wasm-builder` (Rust): Compiles the Rust geodesic solver into WASM.
-2. `base` (Node): Shared node dependencies installed via `npm ci`.
-3. `development` (Node): Dev target with **Hot Reload** enabled.
-4. `builder` (Node): Compiles the Next.js production build (`npx next build`).
-5. `runner` (Node): Lightweight production image with a secure non-root `nextjs` user.
+1. `base` (Node): Shared node dependencies installed via `npm ci`.
+2. `development` (Node): Dev target with **Hot Reload** enabled.
+3. `builder` (Node): Compiles the Next.js production build (`npx next build`).
+4. `runner` (Node): Lightweight production image with a secure non-root `nextjs` user.
 
 ### 💻 Developer Workflow Command Reference
 
@@ -88,7 +72,6 @@ docker compose up -d --build
 
 #### 2. Manual Local Development (Bare-metal)
 ```bash
-npm run build:wasm
 npm run dev
 ```
 

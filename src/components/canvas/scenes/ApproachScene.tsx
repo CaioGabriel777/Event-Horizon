@@ -13,7 +13,6 @@
 import { useRef } from "react";
 import { Group } from "three";
 import { useFrame } from "@react-three/fiber";
-import { GravityText } from "../objects/GravityText";
 
 import { useExperienceStore } from "@/store/useExperienceStore";
 

@@ -18,7 +18,4 @@ services:
       # Isolate build directories and packages to prevent conflicts with the host machine
       - /app/node_modules
       - /app/.next
-      - /app/rust/geodesic-lut/target
-      # Preserve the WASM files built inside the container from being overshadowed by the host mount
-      - /app/public/wasm
     restart: unless-stopped

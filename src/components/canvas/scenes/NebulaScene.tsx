@@ -8,11 +8,10 @@
  * Components:
  * - Nebula: Instanced particle cloud with GLSL volumetric noise
  * - Ambient lighting: subtle purple wash
- * - 3D Text removed — all text handled by DOM SceneOverlay
+ * - Text content is handled by the DOM SceneOverlay
  *
  * The point lights are anchored to NEBULA_CENTER_Z so the internal glow
- * tracks the nebula's world position — move the nebula in constants.ts and
- * the lights follow it, instead of being left behind at a fixed Z.
+ * tracks the nebula's world position dynamically.
  */
 
 "use client";
