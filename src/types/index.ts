@@ -45,18 +45,18 @@ export interface ExperienceState {
   isHelmetOn: boolean;          // True when the astronaut helmet overlay is active
   dpr: number;
   antialias: boolean;
-  
+
   /** True when the cinematic orbit is running */
   isOrbitActive: boolean;
   /** Cinematic orbit progress (0.0 to 1.0) */
   orbitProgress: number;
 
   /** Timeline progress (0.0 to 1.0) of the singularity cinematic sequence */
-  singularityProgress: number;  
-  
+  singularityProgress: number;
+
   /** True when the singularity cinematic is currently running, locking the scroll */
   isSingularityActive: boolean;
-  
+
   /** Signal flag set by SingularityPass to instruct useScrollPhase to synchronously reset the DOM scroll */
   shouldResetScroll: boolean;
 
@@ -71,6 +71,8 @@ export interface ExperienceState {
   dataLinkArmed: boolean;
 
   isEpilogue: boolean;
+  isBriefingOpen: boolean;
+
   // Actions
   setScrollProgress: (v: number) => void;
   setPhase: (v: Phase) => void;
@@ -79,6 +81,7 @@ export interface ExperienceState {
   setGpuProfile: (profile: GpuProfile) => void;
   setReady: () => void;
   setIsHelmetOn: (v: boolean | ((prev: boolean) => boolean)) => void;
+  setIsBriefingOpen: (v: boolean) => void;
   setDpr: (v: number) => void;
   setAntialias: (v: boolean) => void;
   setIsOrbitActive: (v: boolean) => void;
