@@ -5,8 +5,8 @@
 </p>
 
 <p align="center">
-  <img src="public/gifs/bh.gif" height="280" alt="Black Hole Event Horizon" />
-  <img src="public/gifs/nebula.gif" height="280" alt="Volumetric Nebula" />
+  <img src="public/gifs/bh_opt.gif" height="280" alt="Black Hole Event Horizon" />
+  <img src="public/gifs/nebula_opt.gif" height="280" alt="Volumetric Nebula" />
 </p>
 
 An immersive, cinematic, physically-based WebGL experience exploring the gravitational anomalies of a black hole.
